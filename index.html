@@ -4,12 +4,57 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Project page for UAV3DCrop, a benchmark for 3D reconstruction in repeated multi-angle UAV crop surveys.">
+  <meta name="theme-color" content="#173f32">
   <link rel="canonical" href="https://link-dev.github.io/UAV3DCrop/">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23173f32'/%3E%3Cpath d='M46 14C29 16 18 28 18 46c17-2 28-14 28-32z' fill='%2357a773'/%3E%3Cpath d='M23 41L41 21' stroke='%23d9f27c' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
   <meta property="og:type" content="website">
   <meta property="og:title" content="UAV3DCrop">
   <meta property="og:description" content="Benchmarking 3D reconstruction in repeated multi-angle UAV crop surveys.">
   <meta property="og:url" content="https://link-dev.github.io/UAV3DCrop/">
-  <title>UAV3DCrop — Project Page</title>
+  <meta property="og:image" content="https://link-dev.github.io/UAV3DCrop/demo-assets/og-card.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="UAV3DCrop — benchmarking 3D reconstruction in repeated multi-angle UAV crop surveys">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="UAV3DCrop">
+  <meta name="twitter:description" content="Benchmarking 3D reconstruction in repeated multi-angle UAV crop surveys.">
+  <meta name="twitter:image" content="https://link-dev.github.io/UAV3DCrop/demo-assets/og-card.jpg">
+  <title>UAV3DCrop: Benchmarking 3D Reconstruction in Repeated Multi-Angle UAV Crop Surveys</title>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    "name": "UAV3DCrop",
+    "alternateName": "UAV3DCrop: Benchmarking 3D Reconstruction in Repeated Multi-Angle UAV Crop Surveys",
+    "description": "A large-scale benchmark of repeated multi-angle UAV RGB surveys over corn, soybean, wheat and oat fields for 3D reconstruction, novel view synthesis and geometry recovery, with paired per-image depth data.",
+    "url": "https://link-dev.github.io/UAV3DCrop/",
+    "sameAs": ["https://huggingface.co/datasets/Link-Dev/UAV3DCrop"],
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "isAccessibleForFree": true,
+    "keywords": ["UAV", "agriculture", "3D reconstruction", "novel view synthesis", "crop phenotyping", "benchmark", "Gaussian splatting", "NeRF", "depth estimation"],
+    "temporalCoverage": "2023/2025",
+    "creator": [
+      {"@type": "Person", "name": "Junxiong Zhou"},
+      {"@type": "Person", "name": "Xuechen Li"},
+      {"@type": "Person", "name": "Chonghao Qiu"},
+      {"@type": "Person", "name": "Lang Qiao"},
+      {"@type": "Person", "name": "Xiaowei Jia"},
+      {"@type": "Person", "name": "Qi Yang"},
+      {"@type": "Person", "name": "Chishan Zhang"},
+      {"@type": "Person", "name": "Leikun Yin"},
+      {"@type": "Person", "name": "Nanshan You"},
+      {"@type": "Person", "name": "Vipin Kumar"},
+      {"@type": "Person", "name": "David Mulla"},
+      {"@type": "Person", "name": "Ce Yang"},
+      {"@type": "Person", "name": "Zhenong Jin"},
+      {"@type": "Person", "name": "Licheng Liu"}
+    ],
+    "distribution": [
+      {"@type": "DataDownload", "name": "UAV3DCrop RGB imagery (Hugging Face)", "contentUrl": "https://huggingface.co/datasets/Link-Dev/UAV3DCrop"},
+      {"@type": "DataDownload", "name": "UAV3DCrop depth maps (Hugging Face)", "contentUrl": "https://huggingface.co/datasets/Link-Dev/UAV3DCrop_depth"}
+    ]
+  }
+  </script>
   <style>
     :root {
       --ink: #13251e;
@@ -19,7 +64,7 @@
       --lime: #d9f27c;
       --cream: #f5f0e4;
       --paper: #fffdf7;
-      --muted: #66756f;
+      --muted: #5b6a64;
       --line: rgba(19,37,30,.13);
       --radius: 24px;
     }
@@ -29,24 +74,17 @@
       margin: 0;
       color: var(--ink);
       background: var(--cream);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       line-height: 1.5;
     }
     img, video { display: block; width: 100%; }
     button, input { font: inherit; }
     a { color: inherit; }
-    .review-bar {
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      padding: 9px 20px;
-      color: #fff;
-      background: #b9442f;
-      text-align: center;
-      font-size: 12px;
-      font-weight: 750;
-      letter-spacing: .08em;
-      text-transform: uppercase;
+    .license-chip {
+      padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px;
+      color: var(--forest); background: rgba(87,167,115,.1);
+      font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
+      white-space: nowrap;
     }
     .shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
     nav {
@@ -71,7 +109,7 @@
     .pill {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
       padding: 12px 18px; border-radius: 999px; text-decoration: none;
-      border: 1px solid var(--line); font-weight: 750; font-size: 14px;
+      border: 1px solid var(--line); font-weight: 750; font-size: 14px; cursor: pointer;
     }
     .pill.dark { color: #fff; background: var(--forest); border-color: var(--forest); }
     .hero { padding: 48px 0 70px; }
@@ -184,7 +222,7 @@
       border: 1px solid var(--line); border-radius: 18px; background: #edf0eb;
       display: flex; align-items: center; justify-content: center;
     }
-    .benchmark-viewer img { width: 100%; height: 100%; object-fit: contain; }
+    .benchmark-viewer img { width: 100%; height: 100%; object-fit: contain; cursor: zoom-in; }
     .benchmark-viewer.dark { background: #102e25; }
     .viewer-badge {
       position: absolute; left: 12px; bottom: 12px; padding: 7px 10px;
@@ -231,6 +269,28 @@
     }
     .meta-block p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
     .meta-block a { color: var(--forest); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    .cite-card {
+      margin-top: 18px; padding: 30px; border: 1px solid var(--line); border-radius: 28px;
+      background: var(--paper);
+    }
+    .cite-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; margin-bottom: 16px; flex-wrap: wrap; }
+    .cite-head p { margin: 6px 0 0; color: var(--muted); font-size: 13px; max-width: 560px; }
+    .cite-card pre {
+      margin: 0; padding: 20px; overflow-x: auto; border-radius: 16px;
+      background: var(--forest-2); color: #d9e7df;
+      font-size: 12.5px; line-height: 1.6;
+    }
+    .lightbox {
+      position: fixed; inset: 0; z-index: 50; display: none;
+      align-items: center; justify-content: center; padding: 4vmin;
+      background: rgba(8, 22, 17, .93); cursor: zoom-out;
+    }
+    .lightbox.open { display: flex; }
+    .lightbox img { max-width: 100%; max-height: calc(100% - 30px); width: auto; height: auto; border-radius: 10px; }
+    .lightbox p {
+      position: absolute; left: 0; right: 0; bottom: 10px; margin: 0; text-align: center;
+      color: #c6d5cf; font-size: 12px;
+    }
     footer { padding: 42px 0; color: var(--muted); font-size: 13px; }
     footer .shell { display: flex; justify-content: space-between; gap: 20px; }
     @media (max-width: 900px) {
@@ -249,6 +309,7 @@
     @media (max-width: 560px) {
       .shell { width: min(100% - 24px, 1180px); }
       nav { height: 64px; }
+      .license-chip { display: none; }
       .nav-links .pill { padding: 9px 12px; }
       .hero { padding-top: 34px; }
       h1 { font-size: 48px; }
@@ -274,10 +335,9 @@
   </style>
 </head>
 <body>
-  <div class="review-bar">Open dataset · CC BY 4.0</div>
   <header class="shell">
     <nav>
-      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>UAV3DCrop</div>
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>UAV3DCrop<span class="license-chip">Open dataset · CC BY 4.0</span></div>
       <div class="nav-links">
         <a href="#dataset">Dataset</a>
         <a href="#temporal">Temporal</a>
@@ -290,7 +350,7 @@
   <main>
     <div class="hero shell">
       <div class="eyebrow">Repeated multi-angle UAV surveys</div>
-      <h1>Seeing crop fields<br>in <em>four dimensions.</em></h1>
+      <h1>Seeing crop fields<br>in <em>3D, across seasons.</em></h1>
       <div class="hero-copy">
         <p>UAV3DCrop is a large-scale benchmark for 3D reconstruction across crop types, growth stages and repeated UAV acquisitions.</p>
         <div class="hero-actions">
@@ -372,12 +432,12 @@
               <p>Seven scene-optimized methods compared on identical held-out crop regions.</p>
             </div>
             <div class="benchmark-viewer">
-              <img id="trackAImage" src="demo-assets/tracka_all_methods.png" alt="Ground truth and seven novel-view synthesis methods compared across four crops" loading="lazy" decoding="async">
+              <img id="trackAImage" src="demo-assets/tracka_all_methods.webp" alt="Ground truth and seven novel-view synthesis methods compared across four crops" loading="lazy" decoding="async">
             </div>
             <div class="bench-card-footer">
               <div class="method-tabs tracka-tabs" aria-label="Select Track A view">
-                <button class="active" data-image="tracka_all_methods.png" data-label="Qualitative · GT + 7 methods · same held-out ROI" data-alt="Ground truth and seven novel-view synthesis methods compared across four crops" data-caption="<strong>Same held-out ROI.</strong> Rows are corn, soybean, wheat and oat; every column uses the same crop region.">Qualitative</button>
-                <button data-image="tracka_quantitative_fig3.png" data-label="Quantitative · NVS PSNR vs depth RMSE" data-alt="Quantitative relationship between novel-view synthesis PSNR and depth RMSE across crops" data-caption="<strong>Cross-task performance.</strong> Each point is a scene–method pair; rightward and downward are better.">Quantitative</button>
+                <button class="active" aria-pressed="true" data-image="tracka_all_methods.webp" data-label="Qualitative · GT + 7 methods · same held-out ROI" data-alt="Ground truth and seven novel-view synthesis methods compared across four crops" data-caption="<strong>Same held-out ROI.</strong> Rows are corn, soybean, wheat and oat; every column uses the same crop region.">Qualitative</button>
+                <button aria-pressed="false" data-image="tracka_quantitative_fig3.png" data-label="Quantitative · NVS PSNR vs depth RMSE" data-alt="Quantitative relationship between novel-view synthesis PSNR and depth RMSE across crops" data-caption="<strong>Cross-task performance.</strong> Each point is a scene–method pair; rightward and downward are better.">Quantitative</button>
               </div>
               <div class="viewer-caption" id="trackACaption"><strong>Same held-out ROI.</strong> Rows are corn, soybean, wheat and oat; every column uses the same crop region.</div>
               <div class="method-list" aria-label="Track A methods">
@@ -397,10 +457,10 @@
             </div>
             <div class="bench-card-footer">
               <div class="method-tabs trackb-tabs" aria-label="Select Track B output">
-                <button class="active" data-image="trackb_pointmap.webp" data-label="Illustrative MapAnything output · Point map" data-alt="MapAnything point-map output">Point map</button>
-                <button data-image="trackb_zdepth.webp" data-label="Illustrative MapAnything output · Z-depth" data-alt="MapAnything Z-depth output">Z-depth</button>
-                <button data-image="trackb_cameras.webp" data-label="Illustrative MapAnything output · Cameras" data-alt="MapAnything camera-layout output">Cameras</button>
-                <button data-image="trackb_four_model_summary.png" data-label="All four models · quantitative summary" data-alt="Quantitative comparison of four Track B models">4-model summary</button>
+                <button class="active" aria-pressed="true" data-image="trackb_pointmap.webp" data-label="Illustrative MapAnything output · Point map" data-alt="MapAnything point-map output">Point map</button>
+                <button aria-pressed="false" data-image="trackb_zdepth.webp" data-label="Illustrative MapAnything output · Z-depth" data-alt="MapAnything Z-depth output">Z-depth</button>
+                <button aria-pressed="false" data-image="trackb_cameras.webp" data-label="Illustrative MapAnything output · Cameras" data-alt="MapAnything camera-layout output">Cameras</button>
+                <button aria-pressed="false" data-image="trackb_four_model_summary.png" data-label="All four models · quantitative summary" data-alt="Quantitative comparison of four Track B models">4-model summary</button>
               </div>
               <div class="model-list" aria-label="Track B benchmarked models">
                 <span>Benchmarked:</span><span>MASt3R</span><span>VGGT</span><span>Pi3</span><span>MapAnything</span>
@@ -441,9 +501,32 @@
             </div>
           </div>
         </div>
+        <div class="cite-card">
+          <div class="cite-head">
+            <div>
+              <div class="eyebrow">Citation</div>
+              <p>Dataset citation for now — this entry will be replaced by the formal manuscript citation once it is publicly available.</p>
+            </div>
+            <button class="pill dark" id="copyBibtex" type="button">Copy BibTeX</button>
+          </div>
+          <pre id="bibtexBlock"><code>@misc{uav3dcrop2026,
+  title        = {{UAV3DCrop}: Benchmarking {3D} Reconstruction in Repeated Multi-Angle {UAV} Crop Surveys},
+  author       = {Zhou, Junxiong and Li, Xuechen and Qiu, Chonghao and Qiao, Lang and Jia, Xiaowei and
+                  Yang, Qi and Zhang, Chishan and Yin, Leikun and You, Nanshan and Kumar, Vipin and
+                  Mulla, David and Yang, Ce and Jin, Zhenong and Liu, Licheng},
+  year         = {2026},
+  howpublished = {\url{https://link-dev.github.io/UAV3DCrop/}},
+  note         = {Dataset: \url{https://huggingface.co/datasets/Link-Dev/UAV3DCrop}}
+}</code></pre>
+        </div>
       </div>
     </section>
   </main>
+
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Enlarged figure">
+    <img id="lightboxImage" src="" alt="">
+    <p>Click anywhere or press Esc to close</p>
+  </div>
 
   <footer>
     <div class="shell">
@@ -541,32 +624,52 @@
       drawRoute();
     }
 
-    function startRoute() {
+    // The animation only runs while the user can actually see it: it pauses in
+    // background tabs and while the hero is scrolled out of view, so the frame
+    // sequence is not downloaded invisibly.
+    let routeInView = true;
+
+    function syncRouteTimer() {
       clearInterval(routeTimer);
-      routeTimer = setInterval(
-        () => showRoutePoint((routeIndex + 1) % fullRoutePoints.length),
-        90000 / fullRoutePoints.length
-      );
+      if (routePlaying && routeInView && !document.hidden) {
+        routeTimer = setInterval(
+          () => showRoutePoint((routeIndex + 1) % fullRoutePoints.length),
+          90000 / fullRoutePoints.length
+        );
+      }
     }
 
-    routeToggle.addEventListener("click", () => {
-      routePlaying = !routePlaying;
+    function setRoutePlaying(playing) {
+      routePlaying = playing;
       routeToggle.textContent = routePlaying ? "Pause" : "Play";
       routeToggle.setAttribute("aria-label", routePlaying ? "Pause route animation" : "Play route animation");
-      if (routePlaying) startRoute();
-      else clearInterval(routeTimer);
-    });
+      syncRouteTimer();
+    }
+
+    routeToggle.addEventListener("click", () => setRoutePlaying(!routePlaying));
+    document.addEventListener("visibilitychange", syncRouteTimer);
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver((entries) => {
+        routeInView = entries[0].isIntersecting;
+        syncRouteTimer();
+      }).observe(document.querySelector(".flight"));
+    }
     routeSlider.max = fullRoutePoints.length - 1;
     routeSlider.addEventListener("input", () => showRoutePoint(Number(routeSlider.value)));
     window.addEventListener("resize", drawRoute);
     showRoutePoint(0);
-    startRoute();
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setRoutePlaying(false);
+    else syncRouteTimer();
 
     const slider = document.getElementById("stageSlider");
     const image = document.getElementById("temporalImage");
     const number = document.getElementById("stageNumber");
     const label = document.getElementById("stageLabel");
     const labels = ["Early emergence", "Establishment", "Vegetative growth", "Mid season", "Canopy expansion", "Dense canopy", "Late season", "Maturity"];
+    const preloadStage = (stage) => {
+      if (stage < 1 || stage > 8) return;
+      new Image().src = `demo-assets/temporal_stage_${String(stage).padStart(2, "0")}.webp`;
+    };
     slider.addEventListener("input", () => {
       const stage = Number(slider.value);
       const padded = String(stage).padStart(2, "0");
@@ -574,11 +677,17 @@
       image.alt = `Temporal crop stage ${stage}`;
       number.textContent = `Stage ${padded} / 08`;
       label.textContent = labels[stage - 1];
+      preloadStage(stage - 1);
+      preloadStage(stage + 1);
     });
     document.querySelectorAll(".trackb-tabs button").forEach((button) => {
       button.addEventListener("click", () => {
-        document.querySelectorAll(".trackb-tabs button").forEach((item) => item.classList.remove("active"));
+        document.querySelectorAll(".trackb-tabs button").forEach((item) => {
+          item.classList.remove("active");
+          item.setAttribute("aria-pressed", "false");
+        });
         button.classList.add("active");
+        button.setAttribute("aria-pressed", "true");
         const trackBImage = document.getElementById("trackBImage");
         trackBImage.src = `demo-assets/${button.dataset.image}`;
         trackBImage.alt = button.dataset.alt;
@@ -587,12 +696,43 @@
     });
     document.querySelectorAll(".tracka-tabs button").forEach((button) => {
       button.addEventListener("click", () => {
-        document.querySelectorAll(".tracka-tabs button").forEach((item) => item.classList.remove("active"));
+        document.querySelectorAll(".tracka-tabs button").forEach((item) => {
+          item.classList.remove("active");
+          item.setAttribute("aria-pressed", "false");
+        });
         button.classList.add("active");
+        button.setAttribute("aria-pressed", "true");
         const trackAImage = document.getElementById("trackAImage");
         trackAImage.src = `demo-assets/${button.dataset.image}`;
         trackAImage.alt = button.dataset.alt;
         document.getElementById("trackACaption").innerHTML = button.dataset.caption;
+      });
+    });
+
+    const lightbox = document.getElementById("lightbox");
+    const lightboxImage = document.getElementById("lightboxImage");
+    document.querySelectorAll(".benchmark-viewer img").forEach((img) => {
+      img.addEventListener("click", () => {
+        lightboxImage.src = img.src;
+        lightboxImage.alt = img.alt;
+        lightbox.classList.add("open");
+        document.body.style.overflow = "hidden";
+      });
+    });
+    function closeLightbox() {
+      lightbox.classList.remove("open");
+      document.body.style.overflow = "";
+    }
+    lightbox.addEventListener("click", closeLightbox);
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeLightbox();
+    });
+
+    document.getElementById("copyBibtex").addEventListener("click", (event) => {
+      const text = document.querySelector("#bibtexBlock code").textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        event.target.textContent = "Copied ✓";
+        setTimeout(() => { event.target.textContent = "Copy BibTeX"; }, 1800);
       });
     });
   </script>
