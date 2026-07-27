@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Project page for UAV3DCrop, a benchmark for 3D reconstruction in repeated multi-angle UAV crop surveys.">
+  <link rel="canonical" href="https://link-dev.github.io/UAV3DCrop/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="UAV3DCrop">
+  <meta property="og:description" content="Benchmarking 3D reconstruction in repeated multi-angle UAV crop surveys.">
+  <meta property="og:url" content="https://link-dev.github.io/UAV3DCrop/">
+  <title>UAV3DCrop — Project Page</title>
+  <style>
+    :root {
+      --ink: #13251e;
+      --forest: #173f32;
+      --forest-2: #0e2d24;
+      --leaf: #57a773;
+      --lime: #d9f27c;
+      --cream: #f5f0e4;
+      --paper: #fffdf7;
+      --muted: #66756f;
+      --line: rgba(19,37,30,.13);
+      --radius: 24px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--cream);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    img, video { display: block; width: 100%; }
+    button, input { font: inherit; }
+    a { color: inherit; }
+    .review-bar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      padding: 9px 20px;
+      color: #fff;
+      background: #b9442f;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+    nav {
+      height: 78px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; font-weight: 850; letter-spacing: -.03em; }
+    .brand-mark {
+      width: 30px; height: 30px; border-radius: 50% 50% 50% 15%;
+      background: var(--forest); transform: rotate(-18deg); position: relative;
+    }
+    .brand-mark::after {
+      content: ""; position: absolute; width: 12px; height: 2px;
+      left: 9px; top: 14px; background: var(--lime); transform: rotate(-28deg);
+    }
+    .nav-links { display: flex; align-items: center; gap: 24px; font-size: 14px; font-weight: 650; }
+    .nav-links a { text-decoration: none; opacity: .76; }
+    .nav-links a:hover { opacity: 1; }
+    .pill {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 18px; border-radius: 999px; text-decoration: none;
+      border: 1px solid var(--line); font-weight: 750; font-size: 14px;
+    }
+    .pill.dark { color: #fff; background: var(--forest); border-color: var(--forest); }
+    .hero { padding: 48px 0 70px; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px;
+      color: var(--forest); font-size: 12px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 28px; height: 2px; background: var(--leaf); }
+    h1 {
+      max-width: 1040px; margin: 0; font-size: clamp(48px, 7.2vw, 94px);
+      line-height: .96; letter-spacing: -.066em; font-weight: 860;
+    }
+    h1 em { color: var(--leaf); font-style: normal; }
+    .hero-copy {
+      display: grid; grid-template-columns: 1fr 1fr; align-items: end; gap: 40px;
+      margin: 34px 0 36px;
+    }
+    .hero-copy p { max-width: 630px; margin: 0; color: var(--muted); font-size: 19px; }
+    .hero-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+    .flight {
+      position: relative; overflow: hidden; padding: 18px; border-radius: 32px; color: #fff; background: var(--forest-2);
+      box-shadow: 0 28px 70px rgba(21,46,36,.17);
+    }
+    .route-panel {
+      position: relative; height: 340px; overflow: hidden; border-radius: 22px;
+      background:
+        radial-gradient(circle at 20% 18%, rgba(217,242,124,.08), transparent 30%),
+        linear-gradient(145deg, #14392d, #0a241c);
+    }
+    .flight-visuals {
+      display: grid; grid-template-columns: 1.35fr .65fr; gap: 18px; align-items: stretch;
+    }
+    .route-panel canvas { width: 100%; height: 100%; }
+    .route-key, .route-pass, .frame-tag {
+      position: absolute; display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px;
+      color: #fff; background: rgba(8,32,24,.66); backdrop-filter: blur(10px);
+      font-size: 11px; font-weight: 750; letter-spacing: .05em;
+    }
+    .route-key { left: 14px; top: 14px; }
+    .route-pass { right: 14px; top: 14px; color: #cfe0d8; }
+    .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 5px rgba(217,242,124,.16); }
+    .frame-stage { display: flex; align-items: center; justify-content: center; }
+    .route-image-shell {
+      position: relative; width: min(420px, 100%); margin: 0 auto; overflow: hidden;
+      border: 1px solid rgba(255,255,255,.15); border-radius: 20px; background: #0a241c;
+      box-shadow: 0 18px 38px rgba(0,0,0,.22);
+    }
+    .route-image-shell img { aspect-ratio: 4 / 3; object-fit: cover; }
+    .frame-tag { right: 12px; bottom: 12px; }
+    .flight-controls {
+      width: min(720px, 100%); margin: 16px auto 0; display: grid;
+      grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
+    }
+    .flight-controls button {
+      min-width: 76px; padding: 9px 13px; border: 1px solid rgba(255,255,255,.2);
+      border-radius: 999px; color: #fff; background: rgba(255,255,255,.07);
+      cursor: pointer; font-size: 12px; font-weight: 780;
+    }
+    .flight-controls input { width: 100%; accent-color: var(--lime); cursor: pointer; }
+    .speed-label { color: #abc1b7; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .stats {
+      display: grid; grid-template-columns: repeat(4,1fr); margin-top: 26px;
+      border: 1px solid var(--line); border-radius: 22px; background: rgba(255,255,255,.42);
+    }
+    .stat { padding: 22px 24px; border-right: 1px solid var(--line); }
+    .stat:last-child { border-right: 0; }
+    .stat strong { display: block; font-size: 27px; letter-spacing: -.04em; }
+    .stat span { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+    section { padding: 90px 0; }
+    .paper-section { background: var(--paper); }
+    .section-head {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: end; margin-bottom: 34px;
+    }
+    h2 { margin: 0; font-size: clamp(36px, 5vw, 62px); line-height: 1; letter-spacing: -.055em; }
+    .section-head p { margin: 0; color: var(--muted); font-size: 17px; max-width: 530px; justify-self: end; }
+    .crop-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+    .crop-card { position: relative; overflow: hidden; min-height: 410px; border-radius: var(--radius); background: #ddd; }
+    .crop-card img { height: 100%; object-fit: cover; transition: transform .55s ease; }
+    .crop-card:hover img { transform: scale(1.035); }
+    .crop-card span {
+      position: absolute; left: 16px; bottom: 16px; padding: 8px 12px;
+      border-radius: 999px; background: rgba(255,255,255,.88); backdrop-filter: blur(8px);
+      font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+    }
+    .temporal-wrap {
+      padding: 18px; border-radius: 30px; color: #fff; background: var(--forest-2);
+      box-shadow: 0 24px 70px rgba(14,45,36,.15);
+    }
+    .temporal-image { overflow: hidden; border-radius: 20px; }
+    .temporal-image img { aspect-ratio: 16 / 7; object-fit: cover; }
+    .temporal-controls { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 20px; padding: 20px 8px 4px; }
+    .stage-no { min-width: 84px; font-weight: 850; font-size: 15px; }
+    .date-label { min-width: 100px; text-align: right; color: #c6d5cf; font-size: 13px; }
+    input[type="range"] { width: 100%; accent-color: var(--lime); cursor: pointer; }
+    .bench-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: stretch; }
+    .bench-card {
+      min-width: 0; min-height: 740px; padding: 22px; border: 1px solid var(--line); border-radius: 28px;
+      background: #fff; display: flex; flex-direction: column;
+    }
+    .card-top {
+      min-height: 102px; display: flex; justify-content: space-between;
+      align-items: flex-start; gap: 18px; margin-bottom: 18px;
+    }
+    .track { color: var(--leaf); font-size: 12px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    h3 { margin: 5px 0 0; font-size: 28px; letter-spacing: -.035em; }
+    .card-top p { max-width: 270px; margin: 0; color: var(--muted); font-size: 13px; }
+    .benchmark-viewer {
+      position: relative; height: 360px; overflow: hidden; padding: 10px;
+      border: 1px solid var(--line); border-radius: 18px; background: #edf0eb;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .benchmark-viewer img { width: 100%; height: 100%; object-fit: contain; }
+    .benchmark-viewer.dark { background: #102e25; }
+    .viewer-badge {
+      position: absolute; left: 12px; bottom: 12px; padding: 7px 10px;
+      border-radius: 999px; color: #fff; background: rgba(10,36,28,.78);
+      font-size: 10px; font-weight: 780; letter-spacing: .04em;
+    }
+    .bench-card-footer {
+      min-height: 118px; margin-top: 14px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .viewer-caption { color: var(--muted); font-size: 12px; }
+    .viewer-caption strong { color: var(--ink); }
+    .method-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .method-tabs button {
+      padding: 8px 11px; border: 1px solid var(--line); border-radius: 999px;
+      color: var(--ink); background: transparent; cursor: pointer; font-size: 12px; font-weight: 750;
+    }
+    .method-tabs button.active { color: #fff; background: var(--forest); border-color: var(--forest); }
+    .method-list, .model-list { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+    .method-list span, .model-list span {
+      padding: 5px 8px; border-radius: 999px; color: var(--muted); background: #f1f3ee;
+      font-size: 10px; font-weight: 740;
+    }
+    .model-list span:first-child { color: var(--forest); background: transparent; padding-left: 0; }
+    .cta {
+      padding: 54px; border-radius: 32px; color: #fff;
+      background: linear-gradient(135deg, var(--forest-2), #245f47);
+      display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: center;
+    }
+    .cta h2 { max-width: 680px; font-size: clamp(34px,5vw,56px); }
+    .cta p { color: #c9dbd3; max-width: 620px; }
+    .cta .pill { color: var(--forest-2); background: var(--lime); border-color: var(--lime); }
+    .cta-links { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+    .cta-links .pill { min-width: 205px; justify-content: center; text-align: center; }
+    .project-meta {
+      margin-top: 18px; padding: 30px; border: 1px solid var(--line); border-radius: 28px;
+      background: var(--paper); display: grid; grid-template-columns: 1.35fr 1fr; gap: 34px;
+    }
+    .project-meta h3 { margin: 8px 0 14px; font-size: clamp(23px,3vw,34px); line-height: 1.12; }
+    .author-list { margin: 0; color: var(--muted); line-height: 1.8; }
+    .meta-details { display: grid; gap: 20px; }
+    .meta-block strong {
+      display: block; margin-bottom: 7px; color: var(--forest);
+      font-size: 11px; letter-spacing: .11em; text-transform: uppercase;
+    }
+    .meta-block p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+    .meta-block a { color: var(--forest); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    footer { padding: 42px 0; color: var(--muted); font-size: 13px; }
+    footer .shell { display: flex; justify-content: space-between; gap: 20px; }
+    @media (max-width: 900px) {
+      .nav-links a:not(.pill), .hero-copy p br { display: none; }
+      .hero-copy, .section-head, .bench-grid { grid-template-columns: 1fr; }
+      .hero-actions { justify-content: flex-start; }
+      .section-head p { justify-self: start; }
+      .crop-grid { grid-template-columns: repeat(2,1fr); }
+      .crop-card { min-height: 320px; }
+      .stats { grid-template-columns: repeat(2,1fr); }
+      .stat:nth-child(2) { border-right: 0; }
+      .stat:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .cta { grid-template-columns: 1fr; padding: 34px; }
+      .project-meta { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .shell { width: min(100% - 24px, 1180px); }
+      nav { height: 64px; }
+      .nav-links .pill { padding: 9px 12px; }
+      .hero { padding-top: 34px; }
+      h1 { font-size: 48px; }
+      .hero-copy { margin-top: 24px; }
+      .route-panel { height: 235px; }
+      .flight-visuals { grid-template-columns: 1fr; }
+      .route-image-shell { width: min(420px, 92%); }
+      .flight-controls { grid-template-columns: auto 1fr; }
+      .speed-label { grid-column: 1 / -1; text-align: center; }
+      .stat { padding: 16px; }
+      .crop-grid { grid-template-columns: 1fr; }
+      .crop-card { min-height: 360px; }
+      section { padding: 66px 0; }
+      .temporal-controls { grid-template-columns: 1fr auto; }
+      .temporal-controls input { grid-column: 1 / -1; grid-row: 2; }
+      .card-top { display: block; }
+      .card-top { min-height: 150px; }
+      .card-top p { margin-top: 10px; }
+      .benchmark-viewer { height: 300px; }
+      .bench-card-footer { min-height: 150px; }
+      footer .shell { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <div class="review-bar">Open dataset · CC BY 4.0</div>
+  <header class="shell">
+    <nav>
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>UAV3DCrop</div>
+      <div class="nav-links">
+        <a href="#dataset">Dataset</a>
+        <a href="#temporal">Temporal</a>
+        <a href="#benchmark">Benchmark</a>
+        <a class="pill" href="#access">Get the dataset</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <div class="hero shell">
+      <div class="eyebrow">Repeated multi-angle UAV surveys</div>
+      <h1>Seeing crop fields<br>in <em>four dimensions.</em></h1>
+      <div class="hero-copy">
+        <p>UAV3DCrop is a large-scale benchmark for 3D reconstruction across crop types, growth stages and repeated UAV acquisitions.</p>
+        <div class="hero-actions">
+          <a class="pill dark" href="#benchmark">Explore benchmarks ↓</a>
+          <a class="pill" href="#access">Data &amp; authors</a>
+        </div>
+      </div>
+      <div class="flight">
+        <div class="flight-visuals">
+          <div class="route-panel">
+            <canvas id="routeCanvas" aria-label="Ten normalized flight trajectories with a moving waypoint"></canvas>
+            <div class="route-key"><span class="pulse"></span>2 nadir · 8 oblique · time ordered</div>
+            <div class="route-pass" id="routePass">Route 01 / 10 · nadir</div>
+          </div>
+          <div class="frame-stage">
+            <div class="route-image-shell">
+              <img id="routeFrame" src="demo-assets/route-frames-a6/route_001.jpg" alt="UAV image corresponding to the current waypoint">
+              <div class="frame-tag" id="frameTag">Frame 001 / 100</div>
+            </div>
+          </div>
+        </div>
+        <div class="flight-controls">
+          <button id="routeToggle" type="button" aria-label="Pause route animation">Pause</button>
+          <input id="routeSlider" type="range" min="0" max="99" value="0" aria-label="Select flight waypoint">
+          <span class="speed-label">Full 1,411-point path · 100 sampled images · 90 sec loop</span>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><strong>90,404</strong><span>RGB images</span></div>
+        <div class="stat"><strong>4</strong><span>Crop types</span></div>
+        <div class="stat"><strong>3 years</strong><span>Field seasons</span></div>
+        <div class="stat"><strong>91</strong><span>Benchmark scenes</span></div>
+      </div>
+    </div>
+
+    <section class="paper-section" id="dataset">
+      <div class="shell">
+        <div class="section-head">
+          <h2>Field realism,<br>at research scale.</h2>
+          <p>Four crop systems captured under real outdoor conditions, with substantial variation in canopy structure, illumination and growth stage.</p>
+        </div>
+        <div class="crop-grid">
+          <div class="crop-card"><img src="demo-assets/crop_corn_03.webp" alt="Corn field UAV image" loading="lazy" decoding="async"><span>Corn</span></div>
+          <div class="crop-card"><img src="demo-assets/crop_soybean_02.webp" alt="Soybean field UAV image" loading="lazy" decoding="async"><span>Soybean</span></div>
+          <div class="crop-card"><img src="demo-assets/crop_wheat_02.webp" alt="Wheat field UAV image" loading="lazy" decoding="async"><span>Wheat</span></div>
+          <div class="crop-card"><img src="demo-assets/crop_oat_03.webp" alt="Oat field UAV image" loading="lazy" decoding="async"><span>Oat</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="temporal">
+      <div class="shell">
+        <div class="section-head">
+          <h2>One field.<br>Eight moments.</h2>
+          <p>Move through the sequence to see how canopy geometry changes over the season. Acquisitions are represented as growth stages to emphasize structural change.</p>
+        </div>
+        <div class="temporal-wrap">
+          <div class="temporal-image"><img id="temporalImage" src="demo-assets/temporal_stage_04.webp" alt="Temporal crop stage 4" loading="lazy" decoding="async"></div>
+          <div class="temporal-controls">
+            <div class="stage-no" id="stageNumber">Stage 04 / 08</div>
+            <input id="stageSlider" type="range" min="1" max="8" value="4" aria-label="Select temporal growth stage">
+            <div class="date-label" id="stageLabel">Mid season</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="paper-section" id="benchmark">
+      <div class="shell">
+        <div class="section-head">
+          <h2>Two tracks.<br>One hard problem.</h2>
+          <p>Evaluate view synthesis and geometry reconstruction under the visual ambiguity of dense, repeating crop canopies.</p>
+        </div>
+        <div class="bench-grid">
+          <article class="bench-card">
+            <div class="card-top">
+              <div><div class="track">Track A</div><h3>Novel view synthesis</h3></div>
+              <p>Seven scene-optimized methods compared on identical held-out crop regions.</p>
+            </div>
+            <div class="benchmark-viewer">
+              <img id="trackAImage" src="demo-assets/tracka_all_methods.png" alt="Ground truth and seven novel-view synthesis methods compared across four crops" loading="lazy" decoding="async">
+            </div>
+            <div class="bench-card-footer">
+              <div class="method-tabs tracka-tabs" aria-label="Select Track A view">
+                <button class="active" data-image="tracka_all_methods.png" data-label="Qualitative · GT + 7 methods · same held-out ROI" data-alt="Ground truth and seven novel-view synthesis methods compared across four crops" data-caption="<strong>Same held-out ROI.</strong> Rows are corn, soybean, wheat and oat; every column uses the same crop region.">Qualitative</button>
+                <button data-image="tracka_quantitative_fig3.png" data-label="Quantitative · NVS PSNR vs depth RMSE" data-alt="Quantitative relationship between novel-view synthesis PSNR and depth RMSE across crops" data-caption="<strong>Cross-task performance.</strong> Each point is a scene–method pair; rightward and downward are better.">Quantitative</button>
+              </div>
+              <div class="viewer-caption" id="trackACaption"><strong>Same held-out ROI.</strong> Rows are corn, soybean, wheat and oat; every column uses the same crop region.</div>
+              <div class="method-list" aria-label="Track A methods">
+                <span>GT</span><span>Nerfacto</span><span>Instant-NGP</span><span>Splatfacto</span>
+                <span>Splatfacto-big</span><span>Mip-Splatting</span><span>Scaffold-GS</span><span>CityGaussian</span>
+              </div>
+            </div>
+          </article>
+          <article class="bench-card">
+            <div class="card-top">
+              <div><div class="track">Track B</div><h3>Geometry recovery</h3></div>
+              <p>Consistent, uncropped views of direct geometry outputs and the four-model benchmark.</p>
+            </div>
+            <div class="benchmark-viewer dark">
+              <img id="trackBImage" src="demo-assets/trackb_pointmap.webp" alt="MapAnything point-map output" loading="lazy" decoding="async">
+              <div class="viewer-badge" id="trackBLabel">Illustrative MapAnything output · Point map</div>
+            </div>
+            <div class="bench-card-footer">
+              <div class="method-tabs trackb-tabs" aria-label="Select Track B output">
+                <button class="active" data-image="trackb_pointmap.webp" data-label="Illustrative MapAnything output · Point map" data-alt="MapAnything point-map output">Point map</button>
+                <button data-image="trackb_zdepth.webp" data-label="Illustrative MapAnything output · Z-depth" data-alt="MapAnything Z-depth output">Z-depth</button>
+                <button data-image="trackb_cameras.webp" data-label="Illustrative MapAnything output · Cameras" data-alt="MapAnything camera-layout output">Cameras</button>
+                <button data-image="trackb_four_model_summary.png" data-label="All four models · quantitative summary" data-alt="Quantitative comparison of four Track B models">4-model summary</button>
+              </div>
+              <div class="model-list" aria-label="Track B benchmarked models">
+                <span>Benchmarked:</span><span>MASt3R</span><span>VGGT</span><span>Pi3</span><span>MapAnything</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="access">
+      <div class="shell">
+        <div class="cta">
+          <div>
+            <div class="eyebrow" style="color:var(--lime)">Dataset access</div>
+            <h2>Build and evaluate crop-aware 3D reconstruction.</h2>
+            <p>Access the public RGB imagery and depth releases on Hugging Face.</p>
+          </div>
+          <div class="cta-links" aria-label="Dataset downloads">
+            <a class="pill" href="https://huggingface.co/datasets/Link-Dev/UAV3DCrop" target="_blank" rel="noopener noreferrer">UAV3DCrop ↗</a>
+            <a class="pill" href="https://huggingface.co/datasets/Link-Dev/UAV3DCrop_depth" target="_blank" rel="noopener noreferrer">UAV3DCrop Depth ↗</a>
+          </div>
+        </div>
+        <div class="project-meta">
+          <div>
+            <div class="eyebrow">Manuscript</div>
+            <h3>UAV3DCrop: Benchmarking 3D Reconstruction in Repeated Multi-Angle UAV Crop Surveys</h3>
+            <p class="author-list">Junxiong Zhou, Xuechen Li, Chonghao Qiu, Lang Qiao, Xiaowei Jia, Qi Yang, Chishan Zhang, Leikun Yin, Nanshan You, Vipin Kumar, David Mulla, Ce Yang, Zhenong Jin, and Licheng Liu</p>
+          </div>
+          <div class="meta-details">
+            <div class="meta-block">
+              <strong>Affiliations</strong>
+              <p>University of Minnesota, Twin Cities · University of Wisconsin–Madison · University of Pittsburgh · Max Planck Institute for Biogeochemistry · Boston University · Peking University</p>
+            </div>
+            <div class="meta-block">
+              <strong>Contact</strong>
+              <p><a href="mailto:zhou1743@umn.edu">Junxiong Zhou</a> · <a href="mailto:licheng.liu@wisc.edu">Licheng Liu</a></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">
+      <span>UAV3DCrop · Project page</span>
+      <span>Content and media licensed under CC BY 4.0</span>
+    </div>
+  </footer>
+
+  <script src="demo-assets/route-data.js"></script>
+  <script>
+    // Full normalized route data is loaded from route-data.js; no raw coordinates are included.
+    const fullRouteTypes = window.routeTypes;
+    const fullRoutePoints = window.routePoints;
+    const routeFrameIndices = window.routeFrameIndices;
+    const routeCanvas = document.getElementById("routeCanvas");
+    const routeContext = routeCanvas.getContext("2d");
+    const routeImage = document.getElementById("routeFrame");
+    const routeSlider = document.getElementById("routeSlider");
+    const routeToggle = document.getElementById("routeToggle");
+    const routePass = document.getElementById("routePass");
+    const frameTag = document.getElementById("frameTag");
+    let routeIndex = 0;
+    let routePlaying = true;
+    let routeTimer;
+
+    function drawRoute() {
+      const rect = routeCanvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      routeCanvas.width = Math.round(rect.width * ratio);
+      routeCanvas.height = Math.round(rect.height * ratio);
+      routeContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+      const width = rect.width;
+      const height = rect.height;
+      const pointAt = (point) => [point[0] * width, point[1] * height];
+
+      routeContext.lineCap = "round";
+      routeContext.lineJoin = "round";
+      fullRouteTypes.forEach((type, segment) => {
+        routeContext.lineWidth = type === "nadir" ? 2.2 : 1.4;
+        routeContext.strokeStyle = type === "nadir" ? "rgba(217, 242, 124, .46)" : "rgba(188, 213, 201, .25)";
+        routeContext.beginPath();
+        fullRoutePoints.forEach((point, index) => {
+          if (point[2] !== segment) return;
+          const [x, y] = pointAt(point);
+          if (index === 0 || fullRoutePoints[index - 1][2] !== segment) routeContext.moveTo(x, y);
+          else routeContext.lineTo(x, y);
+        });
+        routeContext.stroke();
+      });
+
+      const activeSegment = fullRoutePoints[routeIndex][2];
+      routeContext.lineWidth = 3;
+      routeContext.strokeStyle = "#d9f27c";
+      routeContext.beginPath();
+      fullRoutePoints.forEach((point, index) => {
+        if (point[2] !== activeSegment || index > routeIndex) return;
+        const [x, y] = pointAt(point);
+        if (index === 0 || fullRoutePoints[index - 1][2] !== activeSegment) routeContext.moveTo(x, y);
+        else routeContext.lineTo(x, y);
+      });
+      routeContext.stroke();
+
+      const [x, y] = pointAt(fullRoutePoints[routeIndex]);
+      routeContext.beginPath();
+      routeContext.arc(x, y, 12, 0, Math.PI * 2);
+      routeContext.fillStyle = "rgba(217, 242, 124, .16)";
+      routeContext.fill();
+      routeContext.beginPath();
+      routeContext.arc(x, y, 5, 0, Math.PI * 2);
+      routeContext.fillStyle = "#d9f27c";
+      routeContext.fill();
+    }
+
+    let visibleFrameIndex = -1;
+
+    function showRoutePoint(index) {
+      routeIndex = index;
+      let frameIndex = 0;
+      for (let i = 1; i < routeFrameIndices.length; i++) {
+        if (routeFrameIndices[i] <= index) frameIndex = i;
+        else break;
+      }
+      if (frameIndex !== visibleFrameIndex) {
+        visibleFrameIndex = frameIndex;
+        const imageNumber = String(frameIndex + 1).padStart(3, "0");
+        routeImage.src = `demo-assets/route-frames-a6/route_${imageNumber}.jpg`;
+        const next = new Image();
+        next.src = `demo-assets/route-frames-a6/route_${String((frameIndex + 1) % 100 + 1).padStart(3, "0")}.jpg`;
+      }
+      const poseNumber = String(index + 1).padStart(4, "0");
+      frameTag.textContent = `Image ${String(frameIndex + 1).padStart(3, "0")} / 100 · Pose ${poseNumber} / ${fullRoutePoints.length.toLocaleString("en-US")}`;
+      const segment = fullRoutePoints[index][2];
+      routePass.textContent = `Route ${String(segment + 1).padStart(2, "0")} / 10 · ${fullRouteTypes[segment]}`;
+      routeSlider.value = index;
+      drawRoute();
+    }
+
+    function startRoute() {
+      clearInterval(routeTimer);
+      routeTimer = setInterval(
+        () => showRoutePoint((routeIndex + 1) % fullRoutePoints.length),
+        90000 / fullRoutePoints.length
+      );
+    }
+
+    routeToggle.addEventListener("click", () => {
+      routePlaying = !routePlaying;
+      routeToggle.textContent = routePlaying ? "Pause" : "Play";
+      routeToggle.setAttribute("aria-label", routePlaying ? "Pause route animation" : "Play route animation");
+      if (routePlaying) startRoute();
+      else clearInterval(routeTimer);
+    });
+    routeSlider.max = fullRoutePoints.length - 1;
+    routeSlider.addEventListener("input", () => showRoutePoint(Number(routeSlider.value)));
+    window.addEventListener("resize", drawRoute);
+    showRoutePoint(0);
+    startRoute();
+
+    const slider = document.getElementById("stageSlider");
+    const image = document.getElementById("temporalImage");
+    const number = document.getElementById("stageNumber");
+    const label = document.getElementById("stageLabel");
+    const labels = ["Early emergence", "Establishment", "Vegetative growth", "Mid season", "Canopy expansion", "Dense canopy", "Late season", "Maturity"];
+    slider.addEventListener("input", () => {
+      const stage = Number(slider.value);
+      const padded = String(stage).padStart(2, "0");
+      image.src = `demo-assets/temporal_stage_${padded}.webp`;
+      image.alt = `Temporal crop stage ${stage}`;
+      number.textContent = `Stage ${padded} / 08`;
+      label.textContent = labels[stage - 1];
+    });
+    document.querySelectorAll(".trackb-tabs button").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".trackb-tabs button").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        const trackBImage = document.getElementById("trackBImage");
+        trackBImage.src = `demo-assets/${button.dataset.image}`;
+        trackBImage.alt = button.dataset.alt;
+        document.getElementById("trackBLabel").textContent = button.dataset.label;
+      });
+    });
+    document.querySelectorAll(".tracka-tabs button").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".tracka-tabs button").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        const trackAImage = document.getElementById("trackAImage");
+        trackAImage.src = `demo-assets/${button.dataset.image}`;
+        trackAImage.alt = button.dataset.alt;
+        document.getElementById("trackACaption").innerHTML = button.dataset.caption;
+      });
+    });
+  </script>
+</body>
+</html>

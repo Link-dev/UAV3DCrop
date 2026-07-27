@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use UAV3DCrop, please cite the dataset using this metadata. The formal manuscript citation will be added when available."
+type: dataset
+title: "UAV3DCrop: Benchmarking 3D Reconstruction in Repeated Multi-Angle UAV Crop Surveys"
+version: 1.0.0
+date-released: 2026-07-26
+license: CC-BY-4.0
+url: "https://link-dev.github.io/UAV3DCrop/"
+repository-code: "https://github.com/Link-dev/UAV3DCrop"
+authors:
+  - family-names: Zhou
+    given-names: Junxiong
+    email: zhou1743@umn.edu
+  - family-names: Li
+    given-names: Xuechen
+  - family-names: Qiu
+    given-names: Chonghao
+  - family-names: Qiao
+    given-names: Lang
+  - family-names: Jia
+    given-names: Xiaowei
+  - family-names: Yang
+    given-names: Qi
+  - family-names: Zhang
+    given-names: Chishan
+  - family-names: Yin
+    given-names: Leikun
+  - family-names: You
+    given-names: Nanshan
+  - family-names: Kumar
+    given-names: Vipin
+  - family-names: Mulla
+    given-names: David
+  - family-names: Yang
+    given-names: Ce
+  - family-names: Jin
+    given-names: Zhenong
+  - family-names: Liu
+    given-names: Licheng
+    email: licheng.liu@wisc.edu
