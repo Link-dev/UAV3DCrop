@@ -52,7 +52,13 @@
     "distribution": [
       {"@type": "DataDownload", "name": "UAV3DCrop RGB imagery (Hugging Face)", "contentUrl": "https://huggingface.co/datasets/Link-Dev/UAV3DCrop"},
       {"@type": "DataDownload", "name": "UAV3DCrop depth maps (Hugging Face)", "contentUrl": "https://huggingface.co/datasets/Link-Dev/UAV3DCrop_depth"}
-    ]
+    ],
+    "citation": {
+      "@type": "ScholarlyArticle",
+      "name": "UAV3DCrop: Benchmarking 3D Reconstruction in Repeated Multi-Angle UAV Crop Surveys",
+      "url": "https://arxiv.org/abs/2608.06404",
+      "identifier": "arXiv:2608.06404"
+    }
   }
   </script>
   <style>
@@ -262,6 +268,8 @@
     }
     .project-meta h3 { margin: 8px 0 14px; font-size: clamp(23px,3vw,34px); line-height: 1.12; }
     .author-list { margin: 0; color: var(--muted); line-height: 1.8; }
+    .paper-links { margin: 14px 0 0; font-size: 13px; color: var(--muted); }
+    .paper-links a { color: var(--forest); font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 3px; }
     .meta-details { display: grid; gap: 20px; }
     .meta-block strong {
       display: block; margin-bottom: 7px; color: var(--forest);
@@ -342,6 +350,7 @@
         <a href="#dataset">Dataset</a>
         <a href="#temporal">Temporal</a>
         <a href="#benchmark">Benchmark</a>
+        <a href="https://arxiv.org/abs/2608.06404" target="_blank" rel="noopener noreferrer">Paper ↗</a>
         <a class="pill" href="#access">Get the dataset</a>
       </div>
     </nav>
@@ -354,9 +363,10 @@
       <div class="hero-copy">
         <p>UAV3DCrop is a large-scale benchmark for 3D reconstruction across crop types, growth stages and repeated UAV acquisitions.</p>
         <div class="hero-actions">
-          <a class="pill dark" href="#benchmark">Explore benchmarks ↓</a>
+          <a class="pill dark" href="https://arxiv.org/abs/2608.06404" target="_blank" rel="noopener noreferrer">Paper on arXiv ↗</a>
+          <a class="pill" href="#benchmark">Explore benchmarks ↓</a>
           <a class="pill" href="#access">Data &amp; authors</a>
-          <a class="pill" href="https://github.com/Link-dev/UAV3DCrop" target="_blank" rel="noopener noreferrer">GitHub repository ↗</a>
+          <a class="pill" href="https://github.com/Link-dev/UAV3DCrop" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
         </div>
       </div>
       <div class="flight">
@@ -486,9 +496,10 @@
         </div>
         <div class="project-meta">
           <div>
-            <div class="eyebrow">Manuscript</div>
+            <div class="eyebrow">Paper</div>
             <h3>UAV3DCrop: Benchmarking 3D Reconstruction in Repeated Multi-Angle UAV Crop Surveys</h3>
             <p class="author-list">Junxiong Zhou, Xuechen Li, Chonghao Qiu, Lang Qiao, Xiaowei Jia, Qi Yang, Chishan Zhang, Leikun Yin, Nanshan You, Vipin Kumar, David Mulla, Ce Yang, Zhenong Jin, and Licheng Liu</p>
+            <p class="paper-links"><a href="https://arxiv.org/abs/2608.06404" target="_blank" rel="noopener noreferrer">arXiv:2608.06404 [cs.CV]</a> · August 2026</p>
           </div>
           <div class="meta-details">
             <div class="meta-block">
@@ -505,18 +516,20 @@
           <div class="cite-head">
             <div>
               <div class="eyebrow">Citation</div>
-              <p>Dataset citation for now — this entry will be replaced by the formal manuscript citation once it is publicly available.</p>
+              <p>If you use UAV3DCrop, please cite the arXiv paper.</p>
             </div>
             <button class="pill dark" id="copyBibtex" type="button">Copy BibTeX</button>
           </div>
-          <pre id="bibtexBlock"><code>@misc{uav3dcrop2026,
-  title        = {{UAV3DCrop}: Benchmarking {3D} Reconstruction in Repeated Multi-Angle {UAV} Crop Surveys},
-  author       = {Zhou, Junxiong and Li, Xuechen and Qiu, Chonghao and Qiao, Lang and Jia, Xiaowei and
-                  Yang, Qi and Zhang, Chishan and Yin, Leikun and You, Nanshan and Kumar, Vipin and
-                  Mulla, David and Yang, Ce and Jin, Zhenong and Liu, Licheng},
-  year         = {2026},
-  howpublished = {\url{https://link-dev.github.io/UAV3DCrop/}},
-  note         = {Dataset: \url{https://huggingface.co/datasets/Link-Dev/UAV3DCrop}}
+          <pre id="bibtexBlock"><code>@misc{zhou2026uav3dcrop,
+  title         = {{UAV3DCrop}: Benchmarking {3D} Reconstruction in Repeated Multi-Angle {UAV} Crop Surveys},
+  author        = {Zhou, Junxiong and Li, Xuechen and Qiu, Chonghao and Qiao, Lang and Jia, Xiaowei and
+                   Yang, Qi and Zhang, Chishan and Yin, Leikun and You, Nanshan and Kumar, Vipin and
+                   Mulla, David and Yang, Ce and Jin, Zhenong and Liu, Licheng},
+  year          = {2026},
+  eprint        = {2608.06404},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  url           = {https://arxiv.org/abs/2608.06404}
 }</code></pre>
         </div>
       </div>
