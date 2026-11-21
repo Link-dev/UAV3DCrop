@@ -1,0 +1,1385 @@
+diff --git a/benchmarking/dense_n_view/benchmark.py b/benchmarking/dense_n_view/benchmark.py
+index 2258837..869d91b 100644
+--- a/benchmarking/dense_n_view/benchmark.py
++++ b/benchmarking/dense_n_view/benchmark.py
+@@ -361,7 +361,11 @@ def benchmark(args):
+         ckpt = torch.load(
+             args.model.pretrained, map_location=device, weights_only=False
+         )
+-        print(model.load_state_dict(ckpt["model"], strict=False))
++        # Accept both {"model": state_dict} checkpoints and plain state dicts
++        if "model" in ckpt:
++            print(model.load_state_dict(ckpt["model"], strict=False))
++        else:
++            print(model.load_state_dict(ckpt, strict=False))
+         del ckpt  # in case it occupies memory
+ 
+     # Create dictionary to keep track of the results across different benchmarking datasets
+@@ -505,10 +509,14 @@ def benchmark(args):
+                 ray_dirs_err_deg_curr_set = np.mean(ray_dirs_err_deg_across_views)
+ 
+                 # Compute the pose ATE RMSE
+-                pose_ate_curr_set = evaluate_ate(
+-                    gt_traj=gt_poses_curr_set,
+-                    est_traj=pr_poses_curr_set,
+-                )
++                try:
++                    pose_ate_curr_set = evaluate_ate(
++                        gt_traj=gt_poses_curr_set,
++                        est_traj=pr_poses_curr_set,
++                    )
++                except Exception as e:
++                    print(f"WARNING: evaluate_ate failed ({e}), skipping this set.")
++                    continue
+ 
+                 # Compute the pose error
+                 gt_poses_curr_set = torch.stack(gt_poses_curr_set)
+diff --git a/configs/dataset/benchmark_eval.yaml b/configs/dataset/benchmark_eval.yaml
+new file mode 100644
+index 0000000..fe3b406
+--- /dev/null
++++ b/configs/dataset/benchmark_eval.yaml
+@@ -0,0 +1,26 @@
++defaults:
++  - default
++
++# Views per set (benchmark on WAI_Dataset_benchmark, 8 UMN datasets)
++num_views: 36
++
++# Validation resolution for each benchmark dataset (long side 518, aspect 1.52; used for MapAnything, VGGT, Pi3)
++resolution_val_umn2023_corn: ${dataset.resolution_options.518_1_52_ar}
++resolution_val_umn2023_soy: ${dataset.resolution_options.518_1_52_ar}
++resolution_val_umn2024_corn1: ${dataset.resolution_options.518_1_52_ar}
++resolution_val_umn2024_corn2: ${dataset.resolution_options.518_1_52_ar}
++resolution_val_umn2025_wheat: ${dataset.resolution_options.518_1_52_ar}
++resolution_val_umn2025_oat: ${dataset.resolution_options.518_1_52_ar}
++resolution_val_umn2025_corn: ${dataset.resolution_options.518_1_52_ar}
++resolution_val_umn2025_soybean: ${dataset.resolution_options.518_1_52_ar}
++
++# Test Set — 130 sets per dataset
++test_dataset:
++  "+ 130 @ ${dataset.umn2023_corn_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2023_soy_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2024_corn1_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2024_corn2_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2025_wheat_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2025_oat_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2025_corn_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2025_soybean_benchmark_wai.val.dataset_str}"
+diff --git a/configs/dataset/benchmark_eval_512.yaml b/configs/dataset/benchmark_eval_512.yaml
+new file mode 100644
+index 0000000..2132048
+--- /dev/null
++++ b/configs/dataset/benchmark_eval_512.yaml
+@@ -0,0 +1,26 @@
++defaults:
++  - default
++
++# Views per set (benchmark on WAI_Dataset_benchmark, 8 UMN datasets)
++num_views: 36
++
++# Validation resolution for each benchmark dataset (long side 512, aspect 1.52; used for MASt3R, patch size 16)
++resolution_val_umn2023_corn: ${dataset.resolution_options.512_1_52_ar}
++resolution_val_umn2023_soy: ${dataset.resolution_options.512_1_52_ar}
++resolution_val_umn2024_corn1: ${dataset.resolution_options.512_1_52_ar}
++resolution_val_umn2024_corn2: ${dataset.resolution_options.512_1_52_ar}
++resolution_val_umn2025_wheat: ${dataset.resolution_options.512_1_52_ar}
++resolution_val_umn2025_oat: ${dataset.resolution_options.512_1_52_ar}
++resolution_val_umn2025_corn: ${dataset.resolution_options.512_1_52_ar}
++resolution_val_umn2025_soybean: ${dataset.resolution_options.512_1_52_ar}
++
++# Test Set — 130 sets per dataset
++test_dataset:
++  "+ 130 @ ${dataset.umn2023_corn_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2023_soy_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2024_corn1_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2024_corn2_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2025_wheat_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2025_oat_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2025_corn_benchmark_wai.val.dataset_str}
++ + 130 @ ${dataset.umn2025_soybean_benchmark_wai.val.dataset_str}"
+diff --git a/configs/dataset/default.yaml b/configs/dataset/default.yaml
+index 97cf9cd..007953a 100644
+--- a/configs/dataset/default.yaml
++++ b/configs/dataset/default.yaml
+@@ -14,6 +14,14 @@ defaults:
+   - spring_wai: default
+   - tav2_wb_wai: default
+   - unrealstereo4k_wai: default
++  - umn2023_corn_benchmark_wai: default
++  - umn2023_soy_benchmark_wai: default
++  - umn2024_corn1_benchmark_wai: default
++  - umn2024_corn2_benchmark_wai: default
++  - umn2025_wheat_benchmark_wai: default
++  - umn2025_oat_benchmark_wai: default
++  - umn2025_corn_benchmark_wai: default
++  - umn2025_soybean_benchmark_wai: default
+ 
+ # Training Set, For example: BlendedMVS(split='train', resolution=(512, 384), transform=...)
+ train_dataset: ???
+diff --git a/configs/dataset/umn2023_corn_benchmark_wai/default.yaml b/configs/dataset/umn2023_corn_benchmark_wai/default.yaml
+new file mode 100644
+index 0000000..78448df
+--- /dev/null
++++ b/configs/dataset/umn2023_corn_benchmark_wai/default.yaml
+@@ -0,0 +1,3 @@
++defaults:
++  - train: default
++  - val: default
+diff --git a/configs/dataset/umn2023_corn_benchmark_wai/train/default.yaml b/configs/dataset/umn2023_corn_benchmark_wai/train/default.yaml
+new file mode 100644
+index 0000000..d5a941c
+--- /dev/null
++++ b/configs/dataset/umn2023_corn_benchmark_wai/train/default.yaml
+@@ -0,0 +1,30 @@
++dataset_str:
++  "UMN2023CornWAIBenchmark(
++    split='${dataset.umn2023_corn_benchmark_wai.train.split}',
++    resolution=${dataset.umn2023_corn_benchmark_wai.train.dataset_resolution},
++    principal_point_centered=${dataset.umn2023_corn_benchmark_wai.train.principal_point_centered},
++    aug_crop=${dataset.umn2023_corn_benchmark_wai.train.aug_crop},
++    transform='${dataset.umn2023_corn_benchmark_wai.train.transform}',
++    data_norm_type='${dataset.umn2023_corn_benchmark_wai.train.data_norm_type}',
++    ROOT='${dataset.umn2023_corn_benchmark_wai.train.ROOT}',
++    dataset_metadata_dir='${dataset.umn2023_corn_benchmark_wai.train.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2023_corn_benchmark_wai.train.overfit_num_sets},
++    variable_num_views=${dataset.umn2023_corn_benchmark_wai.train.variable_num_views},
++    num_views=${dataset.umn2023_corn_benchmark_wai.train.num_views},
++    covisibility_thres=${dataset.umn2023_corn_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2023_corn_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2023_corn_benchmark_wai.train.max_gap})"
++split: 'train'
++dataset_resolution: ${dataset.resolution_train}
++principal_point_centered: ${dataset.principal_point_centered}
++aug_crop: 16
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2023corn
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.train.variable_num_views}
++num_views: ${dataset.num_views}
++covisibility_thres: 0.25
++min_gap: 2
++max_gap: 4
+diff --git a/configs/dataset/umn2023_corn_benchmark_wai/val/default.yaml b/configs/dataset/umn2023_corn_benchmark_wai/val/default.yaml
+new file mode 100644
+index 0000000..457c895
+--- /dev/null
++++ b/configs/dataset/umn2023_corn_benchmark_wai/val/default.yaml
+@@ -0,0 +1,27 @@
++dataset_str:
++  "UMN2023CornWAIBenchmark(
++    split='${dataset.umn2023_corn_benchmark_wai.val.split}',
++    resolution=${dataset.umn2023_corn_benchmark_wai.val.dataset_resolution},
++    principal_point_centered=${dataset.umn2023_corn_benchmark_wai.val.principal_point_centered},
++    seed=${dataset.umn2023_corn_benchmark_wai.val.seed},
++    transform='${dataset.umn2023_corn_benchmark_wai.val.transform}',
++    data_norm_type='${dataset.umn2023_corn_benchmark_wai.val.data_norm_type}',
++    ROOT='${dataset.umn2023_corn_benchmark_wai.val.ROOT}',
++    dataset_metadata_dir='${dataset.umn2023_corn_benchmark_wai.val.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2023_corn_benchmark_wai.val.overfit_num_sets},
++    variable_num_views=${dataset.umn2023_corn_benchmark_wai.val.variable_num_views},
++    num_views=${dataset.umn2023_corn_benchmark_wai.val.num_views},
++    covisibility_thres=${dataset.umn2023_corn_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2023_corn_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2023_corn_benchmark_wai.train.max_gap})"
++split: 'val'
++dataset_resolution: ${dataset.resolution_val_umn2023_corn}
++principal_point_centered: ${dataset.principal_point_centered}
++seed: 777
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2023corn
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.val.variable_num_views}
++num_views: ${dataset.num_views}
+diff --git a/configs/dataset/umn2023_soy_benchmark_wai/default.yaml b/configs/dataset/umn2023_soy_benchmark_wai/default.yaml
+new file mode 100644
+index 0000000..78448df
+--- /dev/null
++++ b/configs/dataset/umn2023_soy_benchmark_wai/default.yaml
+@@ -0,0 +1,3 @@
++defaults:
++  - train: default
++  - val: default
+diff --git a/configs/dataset/umn2023_soy_benchmark_wai/train/default.yaml b/configs/dataset/umn2023_soy_benchmark_wai/train/default.yaml
+new file mode 100644
+index 0000000..f54cbb8
+--- /dev/null
++++ b/configs/dataset/umn2023_soy_benchmark_wai/train/default.yaml
+@@ -0,0 +1,30 @@
++dataset_str:
++  "UMN2023SoyWAIBenchmark(
++    split='${dataset.umn2023_soy_benchmark_wai.train.split}',
++    resolution=${dataset.umn2023_soy_benchmark_wai.train.dataset_resolution},
++    principal_point_centered=${dataset.umn2023_soy_benchmark_wai.train.principal_point_centered},
++    aug_crop=${dataset.umn2023_soy_benchmark_wai.train.aug_crop},
++    transform='${dataset.umn2023_soy_benchmark_wai.train.transform}',
++    data_norm_type='${dataset.umn2023_soy_benchmark_wai.train.data_norm_type}',
++    ROOT='${dataset.umn2023_soy_benchmark_wai.train.ROOT}',
++    dataset_metadata_dir='${dataset.umn2023_soy_benchmark_wai.train.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2023_soy_benchmark_wai.train.overfit_num_sets},
++    variable_num_views=${dataset.umn2023_soy_benchmark_wai.train.variable_num_views},
++    num_views=${dataset.umn2023_soy_benchmark_wai.train.num_views},
++    covisibility_thres=${dataset.umn2023_soy_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2023_soy_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2023_soy_benchmark_wai.train.max_gap})"
++split: 'train'
++dataset_resolution: ${dataset.resolution_train}
++principal_point_centered: ${dataset.principal_point_centered}
++aug_crop: 16
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2023soy
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.train.variable_num_views}
++num_views: ${dataset.num_views}
++covisibility_thres: 0.25
++min_gap: 2
++max_gap: 4
+diff --git a/configs/dataset/umn2023_soy_benchmark_wai/val/default.yaml b/configs/dataset/umn2023_soy_benchmark_wai/val/default.yaml
+new file mode 100644
+index 0000000..e7092ef
+--- /dev/null
++++ b/configs/dataset/umn2023_soy_benchmark_wai/val/default.yaml
+@@ -0,0 +1,27 @@
++dataset_str:
++  "UMN2023SoyWAIBenchmark(
++    split='${dataset.umn2023_soy_benchmark_wai.val.split}',
++    resolution=${dataset.umn2023_soy_benchmark_wai.val.dataset_resolution},
++    principal_point_centered=${dataset.umn2023_soy_benchmark_wai.val.principal_point_centered},
++    seed=${dataset.umn2023_soy_benchmark_wai.val.seed},
++    transform='${dataset.umn2023_soy_benchmark_wai.val.transform}',
++    data_norm_type='${dataset.umn2023_soy_benchmark_wai.val.data_norm_type}',
++    ROOT='${dataset.umn2023_soy_benchmark_wai.val.ROOT}',
++    dataset_metadata_dir='${dataset.umn2023_soy_benchmark_wai.val.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2023_soy_benchmark_wai.val.overfit_num_sets},
++    variable_num_views=${dataset.umn2023_soy_benchmark_wai.val.variable_num_views},
++    num_views=${dataset.umn2023_soy_benchmark_wai.val.num_views},
++    covisibility_thres=${dataset.umn2023_soy_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2023_soy_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2023_soy_benchmark_wai.train.max_gap})"
++split: 'val'
++dataset_resolution: ${dataset.resolution_val_umn2023_soy}
++principal_point_centered: ${dataset.principal_point_centered}
++seed: 777
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2023soy
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.val.variable_num_views}
++num_views: ${dataset.num_views}
+diff --git a/configs/dataset/umn2024_corn1_benchmark_wai/default.yaml b/configs/dataset/umn2024_corn1_benchmark_wai/default.yaml
+new file mode 100644
+index 0000000..78448df
+--- /dev/null
++++ b/configs/dataset/umn2024_corn1_benchmark_wai/default.yaml
+@@ -0,0 +1,3 @@
++defaults:
++  - train: default
++  - val: default
+diff --git a/configs/dataset/umn2024_corn1_benchmark_wai/train/default.yaml b/configs/dataset/umn2024_corn1_benchmark_wai/train/default.yaml
+new file mode 100644
+index 0000000..077b70e
+--- /dev/null
++++ b/configs/dataset/umn2024_corn1_benchmark_wai/train/default.yaml
+@@ -0,0 +1,30 @@
++dataset_str:
++  "UMN2024Corn1WAIBenchmark(
++    split='${dataset.umn2024_corn1_benchmark_wai.train.split}',
++    resolution=${dataset.umn2024_corn1_benchmark_wai.train.dataset_resolution},
++    principal_point_centered=${dataset.umn2024_corn1_benchmark_wai.train.principal_point_centered},
++    aug_crop=${dataset.umn2024_corn1_benchmark_wai.train.aug_crop},
++    transform='${dataset.umn2024_corn1_benchmark_wai.train.transform}',
++    data_norm_type='${dataset.umn2024_corn1_benchmark_wai.train.data_norm_type}',
++    ROOT='${dataset.umn2024_corn1_benchmark_wai.train.ROOT}',
++    dataset_metadata_dir='${dataset.umn2024_corn1_benchmark_wai.train.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2024_corn1_benchmark_wai.train.overfit_num_sets},
++    variable_num_views=${dataset.umn2024_corn1_benchmark_wai.train.variable_num_views},
++    num_views=${dataset.umn2024_corn1_benchmark_wai.train.num_views},
++    covisibility_thres=${dataset.umn2024_corn1_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2024_corn1_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2024_corn1_benchmark_wai.train.max_gap})"
++split: 'train'
++dataset_resolution: ${dataset.resolution_train}
++principal_point_centered: ${dataset.principal_point_centered}
++aug_crop: 16
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2024corn1
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.train.variable_num_views}
++num_views: ${dataset.num_views}
++covisibility_thres: 0.25
++min_gap: 2
++max_gap: 4
+diff --git a/configs/dataset/umn2024_corn1_benchmark_wai/val/default.yaml b/configs/dataset/umn2024_corn1_benchmark_wai/val/default.yaml
+new file mode 100644
+index 0000000..cc4b559
+--- /dev/null
++++ b/configs/dataset/umn2024_corn1_benchmark_wai/val/default.yaml
+@@ -0,0 +1,27 @@
++dataset_str:
++  "UMN2024Corn1WAIBenchmark(
++    split='${dataset.umn2024_corn1_benchmark_wai.val.split}',
++    resolution=${dataset.umn2024_corn1_benchmark_wai.val.dataset_resolution},
++    principal_point_centered=${dataset.umn2024_corn1_benchmark_wai.val.principal_point_centered},
++    seed=${dataset.umn2024_corn1_benchmark_wai.val.seed},
++    transform='${dataset.umn2024_corn1_benchmark_wai.val.transform}',
++    data_norm_type='${dataset.umn2024_corn1_benchmark_wai.val.data_norm_type}',
++    ROOT='${dataset.umn2024_corn1_benchmark_wai.val.ROOT}',
++    dataset_metadata_dir='${dataset.umn2024_corn1_benchmark_wai.val.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2024_corn1_benchmark_wai.val.overfit_num_sets},
++    variable_num_views=${dataset.umn2024_corn1_benchmark_wai.val.variable_num_views},
++    num_views=${dataset.umn2024_corn1_benchmark_wai.val.num_views},
++    covisibility_thres=${dataset.umn2024_corn1_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2024_corn1_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2024_corn1_benchmark_wai.train.max_gap})"
++split: 'val'
++dataset_resolution: ${dataset.resolution_val_umn2024_corn1}
++principal_point_centered: ${dataset.principal_point_centered}
++seed: 777
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2024corn1
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.val.variable_num_views}
++num_views: ${dataset.num_views}
+diff --git a/configs/dataset/umn2024_corn2_benchmark_wai/default.yaml b/configs/dataset/umn2024_corn2_benchmark_wai/default.yaml
+new file mode 100644
+index 0000000..78448df
+--- /dev/null
++++ b/configs/dataset/umn2024_corn2_benchmark_wai/default.yaml
+@@ -0,0 +1,3 @@
++defaults:
++  - train: default
++  - val: default
+diff --git a/configs/dataset/umn2024_corn2_benchmark_wai/train/default.yaml b/configs/dataset/umn2024_corn2_benchmark_wai/train/default.yaml
+new file mode 100644
+index 0000000..e5fa8d9
+--- /dev/null
++++ b/configs/dataset/umn2024_corn2_benchmark_wai/train/default.yaml
+@@ -0,0 +1,30 @@
++dataset_str:
++  "UMN2024Corn2WAIBenchmark(
++    split='${dataset.umn2024_corn2_benchmark_wai.train.split}',
++    resolution=${dataset.umn2024_corn2_benchmark_wai.train.dataset_resolution},
++    principal_point_centered=${dataset.umn2024_corn2_benchmark_wai.train.principal_point_centered},
++    aug_crop=${dataset.umn2024_corn2_benchmark_wai.train.aug_crop},
++    transform='${dataset.umn2024_corn2_benchmark_wai.train.transform}',
++    data_norm_type='${dataset.umn2024_corn2_benchmark_wai.train.data_norm_type}',
++    ROOT='${dataset.umn2024_corn2_benchmark_wai.train.ROOT}',
++    dataset_metadata_dir='${dataset.umn2024_corn2_benchmark_wai.train.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2024_corn2_benchmark_wai.train.overfit_num_sets},
++    variable_num_views=${dataset.umn2024_corn2_benchmark_wai.train.variable_num_views},
++    num_views=${dataset.umn2024_corn2_benchmark_wai.train.num_views},
++    covisibility_thres=${dataset.umn2024_corn2_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2024_corn2_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2024_corn2_benchmark_wai.train.max_gap})"
++split: 'train'
++dataset_resolution: ${dataset.resolution_train}
++principal_point_centered: ${dataset.principal_point_centered}
++aug_crop: 16
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2024corn2
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.train.variable_num_views}
++num_views: ${dataset.num_views}
++covisibility_thres: 0.25
++min_gap: 2
++max_gap: 4
+diff --git a/configs/dataset/umn2024_corn2_benchmark_wai/val/default.yaml b/configs/dataset/umn2024_corn2_benchmark_wai/val/default.yaml
+new file mode 100644
+index 0000000..cd4cf60
+--- /dev/null
++++ b/configs/dataset/umn2024_corn2_benchmark_wai/val/default.yaml
+@@ -0,0 +1,27 @@
++dataset_str:
++  "UMN2024Corn2WAIBenchmark(
++    split='${dataset.umn2024_corn2_benchmark_wai.val.split}',
++    resolution=${dataset.umn2024_corn2_benchmark_wai.val.dataset_resolution},
++    principal_point_centered=${dataset.umn2024_corn2_benchmark_wai.val.principal_point_centered},
++    seed=${dataset.umn2024_corn2_benchmark_wai.val.seed},
++    transform='${dataset.umn2024_corn2_benchmark_wai.val.transform}',
++    data_norm_type='${dataset.umn2024_corn2_benchmark_wai.val.data_norm_type}',
++    ROOT='${dataset.umn2024_corn2_benchmark_wai.val.ROOT}',
++    dataset_metadata_dir='${dataset.umn2024_corn2_benchmark_wai.val.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2024_corn2_benchmark_wai.val.overfit_num_sets},
++    variable_num_views=${dataset.umn2024_corn2_benchmark_wai.val.variable_num_views},
++    num_views=${dataset.umn2024_corn2_benchmark_wai.val.num_views},
++    covisibility_thres=${dataset.umn2024_corn2_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2024_corn2_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2024_corn2_benchmark_wai.train.max_gap})"
++split: 'val'
++dataset_resolution: ${dataset.resolution_val_umn2024_corn2}
++principal_point_centered: ${dataset.principal_point_centered}
++seed: 777
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2024corn2
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.val.variable_num_views}
++num_views: ${dataset.num_views}
+diff --git a/configs/dataset/umn2025_corn_benchmark_wai/default.yaml b/configs/dataset/umn2025_corn_benchmark_wai/default.yaml
+new file mode 100644
+index 0000000..78448df
+--- /dev/null
++++ b/configs/dataset/umn2025_corn_benchmark_wai/default.yaml
+@@ -0,0 +1,3 @@
++defaults:
++  - train: default
++  - val: default
+diff --git a/configs/dataset/umn2025_corn_benchmark_wai/train/default.yaml b/configs/dataset/umn2025_corn_benchmark_wai/train/default.yaml
+new file mode 100644
+index 0000000..33d5c68
+--- /dev/null
++++ b/configs/dataset/umn2025_corn_benchmark_wai/train/default.yaml
+@@ -0,0 +1,30 @@
++dataset_str:
++  "UMN2025CornWAIBenchmark(
++    split='${dataset.umn2025_corn_benchmark_wai.train.split}',
++    resolution=${dataset.umn2025_corn_benchmark_wai.train.dataset_resolution},
++    principal_point_centered=${dataset.umn2025_corn_benchmark_wai.train.principal_point_centered},
++    aug_crop=${dataset.umn2025_corn_benchmark_wai.train.aug_crop},
++    transform='${dataset.umn2025_corn_benchmark_wai.train.transform}',
++    data_norm_type='${dataset.umn2025_corn_benchmark_wai.train.data_norm_type}',
++    ROOT='${dataset.umn2025_corn_benchmark_wai.train.ROOT}',
++    dataset_metadata_dir='${dataset.umn2025_corn_benchmark_wai.train.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2025_corn_benchmark_wai.train.overfit_num_sets},
++    variable_num_views=${dataset.umn2025_corn_benchmark_wai.train.variable_num_views},
++    num_views=${dataset.umn2025_corn_benchmark_wai.train.num_views},
++    covisibility_thres=${dataset.umn2025_corn_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2025_corn_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2025_corn_benchmark_wai.train.max_gap})"
++split: 'train'
++dataset_resolution: ${dataset.resolution_train}
++principal_point_centered: ${dataset.principal_point_centered}
++aug_crop: 16
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2025corn
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.train.variable_num_views}
++num_views: ${dataset.num_views}
++covisibility_thres: 0.25
++min_gap: 2
++max_gap: 4
+diff --git a/configs/dataset/umn2025_corn_benchmark_wai/val/default.yaml b/configs/dataset/umn2025_corn_benchmark_wai/val/default.yaml
+new file mode 100644
+index 0000000..6e3727b
+--- /dev/null
++++ b/configs/dataset/umn2025_corn_benchmark_wai/val/default.yaml
+@@ -0,0 +1,27 @@
++dataset_str:
++  "UMN2025CornWAIBenchmark(
++    split='${dataset.umn2025_corn_benchmark_wai.val.split}',
++    resolution=${dataset.umn2025_corn_benchmark_wai.val.dataset_resolution},
++    principal_point_centered=${dataset.umn2025_corn_benchmark_wai.val.principal_point_centered},
++    seed=${dataset.umn2025_corn_benchmark_wai.val.seed},
++    transform='${dataset.umn2025_corn_benchmark_wai.val.transform}',
++    data_norm_type='${dataset.umn2025_corn_benchmark_wai.val.data_norm_type}',
++    ROOT='${dataset.umn2025_corn_benchmark_wai.val.ROOT}',
++    dataset_metadata_dir='${dataset.umn2025_corn_benchmark_wai.val.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2025_corn_benchmark_wai.val.overfit_num_sets},
++    variable_num_views=${dataset.umn2025_corn_benchmark_wai.val.variable_num_views},
++    num_views=${dataset.umn2025_corn_benchmark_wai.val.num_views},
++    covisibility_thres=${dataset.umn2025_corn_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2025_corn_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2025_corn_benchmark_wai.train.max_gap})"
++split: 'val'
++dataset_resolution: ${dataset.resolution_val_umn2025_corn}
++principal_point_centered: ${dataset.principal_point_centered}
++seed: 777
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2025corn
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.val.variable_num_views}
++num_views: ${dataset.num_views}
+diff --git a/configs/dataset/umn2025_oat_benchmark_wai/default.yaml b/configs/dataset/umn2025_oat_benchmark_wai/default.yaml
+new file mode 100644
+index 0000000..78448df
+--- /dev/null
++++ b/configs/dataset/umn2025_oat_benchmark_wai/default.yaml
+@@ -0,0 +1,3 @@
++defaults:
++  - train: default
++  - val: default
+diff --git a/configs/dataset/umn2025_oat_benchmark_wai/train/default.yaml b/configs/dataset/umn2025_oat_benchmark_wai/train/default.yaml
+new file mode 100644
+index 0000000..2ab21eb
+--- /dev/null
++++ b/configs/dataset/umn2025_oat_benchmark_wai/train/default.yaml
+@@ -0,0 +1,30 @@
++dataset_str:
++  "UMN2025OatWAIBenchmark(
++    split='${dataset.umn2025_oat_benchmark_wai.train.split}',
++    resolution=${dataset.umn2025_oat_benchmark_wai.train.dataset_resolution},
++    principal_point_centered=${dataset.umn2025_oat_benchmark_wai.train.principal_point_centered},
++    aug_crop=${dataset.umn2025_oat_benchmark_wai.train.aug_crop},
++    transform='${dataset.umn2025_oat_benchmark_wai.train.transform}',
++    data_norm_type='${dataset.umn2025_oat_benchmark_wai.train.data_norm_type}',
++    ROOT='${dataset.umn2025_oat_benchmark_wai.train.ROOT}',
++    dataset_metadata_dir='${dataset.umn2025_oat_benchmark_wai.train.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2025_oat_benchmark_wai.train.overfit_num_sets},
++    variable_num_views=${dataset.umn2025_oat_benchmark_wai.train.variable_num_views},
++    num_views=${dataset.umn2025_oat_benchmark_wai.train.num_views},
++    covisibility_thres=${dataset.umn2025_oat_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2025_oat_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2025_oat_benchmark_wai.train.max_gap})"
++split: 'train'
++dataset_resolution: ${dataset.resolution_train}
++principal_point_centered: ${dataset.principal_point_centered}
++aug_crop: 16
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2025oat
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.train.variable_num_views}
++num_views: ${dataset.num_views}
++covisibility_thres: 0.25
++min_gap: 2
++max_gap: 4
+diff --git a/configs/dataset/umn2025_oat_benchmark_wai/val/default.yaml b/configs/dataset/umn2025_oat_benchmark_wai/val/default.yaml
+new file mode 100644
+index 0000000..2c9f371
+--- /dev/null
++++ b/configs/dataset/umn2025_oat_benchmark_wai/val/default.yaml
+@@ -0,0 +1,27 @@
++dataset_str:
++  "UMN2025OatWAIBenchmark(
++    split='${dataset.umn2025_oat_benchmark_wai.val.split}',
++    resolution=${dataset.umn2025_oat_benchmark_wai.val.dataset_resolution},
++    principal_point_centered=${dataset.umn2025_oat_benchmark_wai.val.principal_point_centered},
++    seed=${dataset.umn2025_oat_benchmark_wai.val.seed},
++    transform='${dataset.umn2025_oat_benchmark_wai.val.transform}',
++    data_norm_type='${dataset.umn2025_oat_benchmark_wai.val.data_norm_type}',
++    ROOT='${dataset.umn2025_oat_benchmark_wai.val.ROOT}',
++    dataset_metadata_dir='${dataset.umn2025_oat_benchmark_wai.val.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2025_oat_benchmark_wai.val.overfit_num_sets},
++    variable_num_views=${dataset.umn2025_oat_benchmark_wai.val.variable_num_views},
++    num_views=${dataset.umn2025_oat_benchmark_wai.val.num_views},
++    covisibility_thres=${dataset.umn2025_oat_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2025_oat_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2025_oat_benchmark_wai.train.max_gap})"
++split: 'val'
++dataset_resolution: ${dataset.resolution_val_umn2025_oat}
++principal_point_centered: ${dataset.principal_point_centered}
++seed: 777
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2025oat
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.val.variable_num_views}
++num_views: ${dataset.num_views}
+diff --git a/configs/dataset/umn2025_soybean_benchmark_wai/default.yaml b/configs/dataset/umn2025_soybean_benchmark_wai/default.yaml
+new file mode 100644
+index 0000000..78448df
+--- /dev/null
++++ b/configs/dataset/umn2025_soybean_benchmark_wai/default.yaml
+@@ -0,0 +1,3 @@
++defaults:
++  - train: default
++  - val: default
+diff --git a/configs/dataset/umn2025_soybean_benchmark_wai/train/default.yaml b/configs/dataset/umn2025_soybean_benchmark_wai/train/default.yaml
+new file mode 100644
+index 0000000..02ccf19
+--- /dev/null
++++ b/configs/dataset/umn2025_soybean_benchmark_wai/train/default.yaml
+@@ -0,0 +1,30 @@
++dataset_str:
++  "UMN2025SoybeanWAIBenchmark(
++    split='${dataset.umn2025_soybean_benchmark_wai.train.split}',
++    resolution=${dataset.umn2025_soybean_benchmark_wai.train.dataset_resolution},
++    principal_point_centered=${dataset.umn2025_soybean_benchmark_wai.train.principal_point_centered},
++    aug_crop=${dataset.umn2025_soybean_benchmark_wai.train.aug_crop},
++    transform='${dataset.umn2025_soybean_benchmark_wai.train.transform}',
++    data_norm_type='${dataset.umn2025_soybean_benchmark_wai.train.data_norm_type}',
++    ROOT='${dataset.umn2025_soybean_benchmark_wai.train.ROOT}',
++    dataset_metadata_dir='${dataset.umn2025_soybean_benchmark_wai.train.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2025_soybean_benchmark_wai.train.overfit_num_sets},
++    variable_num_views=${dataset.umn2025_soybean_benchmark_wai.train.variable_num_views},
++    num_views=${dataset.umn2025_soybean_benchmark_wai.train.num_views},
++    covisibility_thres=${dataset.umn2025_soybean_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2025_soybean_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2025_soybean_benchmark_wai.train.max_gap})"
++split: 'train'
++dataset_resolution: ${dataset.resolution_train}
++principal_point_centered: ${dataset.principal_point_centered}
++aug_crop: 16
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2025soybean
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.train.variable_num_views}
++num_views: ${dataset.num_views}
++covisibility_thres: 0.25
++min_gap: 2
++max_gap: 4
+diff --git a/configs/dataset/umn2025_soybean_benchmark_wai/val/default.yaml b/configs/dataset/umn2025_soybean_benchmark_wai/val/default.yaml
+new file mode 100644
+index 0000000..21a2115
+--- /dev/null
++++ b/configs/dataset/umn2025_soybean_benchmark_wai/val/default.yaml
+@@ -0,0 +1,27 @@
++dataset_str:
++  "UMN2025SoybeanWAIBenchmark(
++    split='${dataset.umn2025_soybean_benchmark_wai.val.split}',
++    resolution=${dataset.umn2025_soybean_benchmark_wai.val.dataset_resolution},
++    principal_point_centered=${dataset.umn2025_soybean_benchmark_wai.val.principal_point_centered},
++    seed=${dataset.umn2025_soybean_benchmark_wai.val.seed},
++    transform='${dataset.umn2025_soybean_benchmark_wai.val.transform}',
++    data_norm_type='${dataset.umn2025_soybean_benchmark_wai.val.data_norm_type}',
++    ROOT='${dataset.umn2025_soybean_benchmark_wai.val.ROOT}',
++    dataset_metadata_dir='${dataset.umn2025_soybean_benchmark_wai.val.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2025_soybean_benchmark_wai.val.overfit_num_sets},
++    variable_num_views=${dataset.umn2025_soybean_benchmark_wai.val.variable_num_views},
++    num_views=${dataset.umn2025_soybean_benchmark_wai.val.num_views},
++    covisibility_thres=${dataset.umn2025_soybean_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2025_soybean_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2025_soybean_benchmark_wai.train.max_gap})"
++split: 'val'
++dataset_resolution: ${dataset.resolution_val_umn2025_soybean}
++principal_point_centered: ${dataset.principal_point_centered}
++seed: 777
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2025soybean
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.val.variable_num_views}
++num_views: ${dataset.num_views}
+diff --git a/configs/dataset/umn2025_wheat_benchmark_wai/default.yaml b/configs/dataset/umn2025_wheat_benchmark_wai/default.yaml
+new file mode 100644
+index 0000000..78448df
+--- /dev/null
++++ b/configs/dataset/umn2025_wheat_benchmark_wai/default.yaml
+@@ -0,0 +1,3 @@
++defaults:
++  - train: default
++  - val: default
+diff --git a/configs/dataset/umn2025_wheat_benchmark_wai/train/default.yaml b/configs/dataset/umn2025_wheat_benchmark_wai/train/default.yaml
+new file mode 100644
+index 0000000..14441a1
+--- /dev/null
++++ b/configs/dataset/umn2025_wheat_benchmark_wai/train/default.yaml
+@@ -0,0 +1,30 @@
++dataset_str:
++  "UMN2025WheatWAIBenchmark(
++    split='${dataset.umn2025_wheat_benchmark_wai.train.split}',
++    resolution=${dataset.umn2025_wheat_benchmark_wai.train.dataset_resolution},
++    principal_point_centered=${dataset.umn2025_wheat_benchmark_wai.train.principal_point_centered},
++    aug_crop=${dataset.umn2025_wheat_benchmark_wai.train.aug_crop},
++    transform='${dataset.umn2025_wheat_benchmark_wai.train.transform}',
++    data_norm_type='${dataset.umn2025_wheat_benchmark_wai.train.data_norm_type}',
++    ROOT='${dataset.umn2025_wheat_benchmark_wai.train.ROOT}',
++    dataset_metadata_dir='${dataset.umn2025_wheat_benchmark_wai.train.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2025_wheat_benchmark_wai.train.overfit_num_sets},
++    variable_num_views=${dataset.umn2025_wheat_benchmark_wai.train.variable_num_views},
++    num_views=${dataset.umn2025_wheat_benchmark_wai.train.num_views},
++    covisibility_thres=${dataset.umn2025_wheat_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2025_wheat_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2025_wheat_benchmark_wai.train.max_gap})"
++split: 'train'
++dataset_resolution: ${dataset.resolution_train}
++principal_point_centered: ${dataset.principal_point_centered}
++aug_crop: 16
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2025wheat
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.train.variable_num_views}
++num_views: ${dataset.num_views}
++covisibility_thres: 0.25
++min_gap: 2
++max_gap: 4
+diff --git a/configs/dataset/umn2025_wheat_benchmark_wai/val/default.yaml b/configs/dataset/umn2025_wheat_benchmark_wai/val/default.yaml
+new file mode 100644
+index 0000000..a18e4df
+--- /dev/null
++++ b/configs/dataset/umn2025_wheat_benchmark_wai/val/default.yaml
+@@ -0,0 +1,27 @@
++dataset_str:
++  "UMN2025WheatWAIBenchmark(
++    split='${dataset.umn2025_wheat_benchmark_wai.val.split}',
++    resolution=${dataset.umn2025_wheat_benchmark_wai.val.dataset_resolution},
++    principal_point_centered=${dataset.umn2025_wheat_benchmark_wai.val.principal_point_centered},
++    seed=${dataset.umn2025_wheat_benchmark_wai.val.seed},
++    transform='${dataset.umn2025_wheat_benchmark_wai.val.transform}',
++    data_norm_type='${dataset.umn2025_wheat_benchmark_wai.val.data_norm_type}',
++    ROOT='${dataset.umn2025_wheat_benchmark_wai.val.ROOT}',
++    dataset_metadata_dir='${dataset.umn2025_wheat_benchmark_wai.val.dataset_metadata_dir}',
++    overfit_num_sets=${dataset.umn2025_wheat_benchmark_wai.val.overfit_num_sets},
++    variable_num_views=${dataset.umn2025_wheat_benchmark_wai.val.variable_num_views},
++    num_views=${dataset.umn2025_wheat_benchmark_wai.val.num_views},
++    covisibility_thres=${dataset.umn2025_wheat_benchmark_wai.train.covisibility_thres},
++    min_gap=${dataset.umn2025_wheat_benchmark_wai.train.min_gap},
++    max_gap=${dataset.umn2025_wheat_benchmark_wai.train.max_gap})"
++split: 'val'
++dataset_resolution: ${dataset.resolution_val_umn2025_wheat}
++principal_point_centered: ${dataset.principal_point_centered}
++seed: 777
++transform: 'imgnorm'
++data_norm_type: ${model.data_norm_type}
++ROOT: ${root_data_dir}/2025wheat
++dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
++overfit_num_sets: null
++variable_num_views: ${dataset.val.variable_num_views}
++num_views: ${dataset.num_views}
+diff --git a/configs/machine/uav3dcrop.yaml b/configs/machine/uav3dcrop.yaml
+new file mode 100644
+index 0000000..f6117a9
+--- /dev/null
++++ b/configs/machine/uav3dcrop.yaml
+@@ -0,0 +1,15 @@
++defaults:
++  - default
++
++# Root directory containing the benchmark data (WAI_Dataset_benchmark)
++root_data_dir: "/path/to/WAI_Dataset_benchmark"
++# Dataset metadata directory (scene lists), shipped in this repository
++mapanything_dataset_metadata_dir: "/path/to/map-anything/mapanything_dataset_metadata_benchmark"
++# Root directory containing pretrained checkpoints for custom models
++root_pretrained_checkpoints_dir: "/path/to/checkpoints"
++# Root directory to log experiments
++root_experiments_dir: "/path/to/experiments"
++# Root directory containing UniCeption pretrained checkpoints
++root_uniception_pretrained_checkpoints_dir: ???
++# Root directory containing external benchmark data
++external_benchmark_data_root_data_dir: ???
+diff --git a/mapanything/datasets/__init__.py b/mapanything/datasets/__init__.py
+index 84bfa56..1a695e8 100644
+--- a/mapanything/datasets/__init__.py
++++ b/mapanything/datasets/__init__.py
+@@ -24,6 +24,16 @@ from mapanything.datasets.wai.scannetpp import ScanNetPPWAI  # noqa
+ from mapanything.datasets.wai.spring import SpringWAI  # noqa
+ from mapanything.datasets.wai.tav2_wb import TartanAirV2WBWAI  # noqa
+ from mapanything.datasets.wai.unrealstereo4k import UnrealStereo4KWAI  # noqa
++from mapanything.datasets.wai.benchmark_wai import (  # noqa
++    UMN2023CornWAIBenchmark,
++    UMN2023SoyWAIBenchmark,
++    UMN2024Corn1WAIBenchmark,
++    UMN2024Corn2WAIBenchmark,
++    UMN2025WheatWAIBenchmark,
++    UMN2025OatWAIBenchmark,
++    UMN2025CornWAIBenchmark,
++    UMN2025SoybeanWAIBenchmark,
++)
+ from mapanything.utils.train_tools import get_rank, get_world_size
+ 
+ 
+diff --git a/mapanything/datasets/base/base_corn_dataset.py b/mapanything/datasets/base/base_corn_dataset.py
+new file mode 100644
+index 0000000..23f2e0c
+--- /dev/null
++++ b/mapanything/datasets/base/base_corn_dataset.py
+@@ -0,0 +1,260 @@
++# Copyright (c) Meta Platforms, Inc. and affiliates.
++#
++# This source code is licensed under the Apache License, Version 2.0
++# found in the LICENSE file in the root directory of this source tree.
++
++"""
++Base class for the UAV crop-field datasets stored in WAI format
++(``images/``, ``depth/``, ``scene_meta.json`` per scene).
++"""
++
++import os
++
++import numpy as np
++
++from mapanything.datasets.base.base_dataset import BaseDataset
++from mapanything.utils.wai.core import load_data, load_frame
++
++
++class BaseCornDataset(BaseDataset):
++    """
++    Base dataset for UAV crop-field scenes in WAI format.
++
++    Subclasses implement ``_load_data`` to set ``self.scenes`` (and ``self.dataset_name``).
++    """
++
++    def __init__(
++        self,
++        *args,
++        ROOT,
++        dataset_metadata_dir,
++        overfit_num_sets=None,
++        sample_specific_scene: bool = False,
++        specific_scene_name: str = None,
++        min_gap: int = 1,
++        max_gap: int = 3,
++        **kwargs,
++    ):
++        """
++        Initialize the dataset attributes.
++        Args:
++            ROOT: Root directory of the dataset.
++            dataset_metadata_dir: Path to the dataset metadata directory.
++            overfit_num_sets: If None, use all sets. Else, the dataset will be truncated to this number of sets.
++            sample_specific_scene: Whether to sample a specific scene from the dataset.
++            specific_scene_name: Name of the specific scene to sample.
++            min_gap: Minimum frame-index gap minus one between consecutive views of the random walk
++                (two consecutive views are at least ``min_gap + 1`` frames apart).
++            max_gap: Unused; kept for config compatibility.
++        """
++        # Initialize the dataset attributes
++        super().__init__(*args, **kwargs)
++        self.ROOT = ROOT
++        self.dataset_metadata_dir = dataset_metadata_dir
++        self.split = kwargs.get("split", "test")
++        self.overfit_num_sets = overfit_num_sets
++        self.sample_specific_scene = sample_specific_scene
++        self.specific_scene_name = specific_scene_name
++        self.min_gap = min_gap
++        self.max_gap = max_gap
++        self._load_data()
++        # Define the dataset type flags
++        self.is_metric_scale = True
++        self.is_synthetic = False
++
++    def _load_data(self):
++        "Load the precomputed dataset metadata (implemented by subclasses)"
++        raise NotImplementedError
++
++    def _random_walk_sampling(
++        self,
++        scene_pairwise_covisibility,
++        num_of_samples,
++        max_retries=4,
++        use_bidirectional_covis=True,
++    ):
++        """
++        Randomly samples S indices from an N x N covisibility matrix by forming adjacency edges such that the resulting subgraph (given by the indices) is connected.
++        If the current node has no new unvisited neighbors, backtracking occurs.
++        Retries with different starting indices if the desired number of samples is not reached, excluding previously visited components.
++        Same as BaseDataset._random_walk_sampling, except that consecutive nodes of the walk must be at least
++        ``self.min_gap + 1`` frame indices apart.
++
++        Args:
++            scene_pairwise_covisibility : np.ndarray (mmap)
++                N x N covisibility matrix for the scene, where N is the number of views in the scene.
++            num_of_samples : int
++                The desired number of nodes to sample (num_of_samples < N).
++            max_retries : int
++                The maximum number of retries with different starting indices.
++            use_bidirectional_covis : bool
++                Whether to compute bidirectional covisibility by averaging row and column values.
++                If False, uses only row access (faster for large memory-mapped arrays).
++                Defaults to True.
++
++        Returns:
++            np.ndarray
++                An array of sampled indices forming a connected subgraph.
++        """
++        excluded_nodes = set()
++        best_walk = []  # To keep track of the best walk found
++        for _ in range(max_retries):
++            visited = set()
++            walk = []  # List to store the random walk sampling order
++            stack = []  # Stack for backtracking
++
++            # Choose a random starting index that is not in the excluded set
++            all_nodes = set(range(len(scene_pairwise_covisibility)))
++            available_nodes = list(all_nodes - excluded_nodes)
++            if not available_nodes:
++                break  # No more nodes to try
++            start = self._rng.choice(available_nodes)
++            walk.append(start)
++            visited.add(start)
++            stack.append(start)
++
++            # Continue until we have sampled S indices or all expandable nodes are exhausted
++            while len(walk) < num_of_samples and stack:
++                current = stack[-1]
++                # Get the pairwise covisibility for the current node
++                if use_bidirectional_covis:
++                    # Use bidirectional covisibility (slower for large memory-mapped arrays)
++                    pairwise_covisibility = (
++                        scene_pairwise_covisibility[current, :]
++                        + scene_pairwise_covisibility[:, current].T
++                    ) / 2
++                else:
++                    # Use only row access (faster for large memory-mapped arrays)
++                    pairwise_covisibility = scene_pairwise_covisibility[current, :]
++                # Normalize the covisibility using self covisibility
++                pairwise_covisibility = pairwise_covisibility / (
++                    pairwise_covisibility[current] + 1e-8
++                )
++                # Assign overlap score of zero to self-pairs
++                pairwise_covisibility[current] = 0
++                # Threshold the covisibility to get adjacency list for the current node
++                adjacency_list_for_current = (
++                    pairwise_covisibility > self.covisibility_thres
++                ).astype(int)
++                adjacency_list_for_current = np.flatnonzero(adjacency_list_for_current)
++                # Get all unvisited neighbors
++                candidates = [
++                    idx
++                    for idx in adjacency_list_for_current
++                    if idx not in visited
++                    and abs(idx - current) >= (self.min_gap + 1)
++                ]  # Remove visited nodes and enforce minimum gap
++                if candidates:
++                    # Randomly select one of the unvisited overlapping neighbors
++                    next_node = self._rng.choice(candidates)
++                    walk.append(next_node)
++                    visited.add(next_node)
++                    stack.append(next_node)
++                else:
++                    # If no unvisited neighbor is available, backtrack
++                    stack.pop()
++
++            # Update the best walk if the current walk is larger
++            if len(walk) > len(best_walk):
++                best_walk = walk
++
++            # If we have enough samples, return the result
++            if len(walk) >= num_of_samples:
++                return np.array(walk)
++
++            # Add all visited nodes to the excluded set
++            excluded_nodes.update(visited)
++
++        # If all retries are exhausted and we still don't have enough samples, return the best walk found
++        return np.array(best_walk)
++
++    def _get_views(self, sampled_idx, num_views_to_sample, resolution):
++        # Get the scene name of the sampled index
++        scene_index = sampled_idx
++        scene_name = self.scenes[scene_index]
++
++        # Get the metadata corresponding to the scene
++        scene_root = os.path.join(self.ROOT, scene_name)
++        scene_meta = load_data(
++            os.path.join(scene_root, "scene_meta.json"), "scene_meta"
++        )
++        scene_file_names = list(scene_meta["frame_names"].keys())
++        num_views_in_scene = len(scene_file_names)
++
++        # Try to load the scene pairwise covisibility mmap if it exists
++        covisibility_version_key = "v0"
++        covisibility_map_dir = os.path.join(
++            scene_root, "covisibility", covisibility_version_key
++        )
++
++        # Check if covisibility file exists
++        pairwise_covisibility = None
++        if os.path.exists(covisibility_map_dir):
++            try:
++                # Assumes only npy file in directory is covisibility map
++                covisibility_map_name = next(
++                    f for f in os.listdir(covisibility_map_dir) if f.endswith(".npy")
++                )
++                covisibility_map_path = os.path.join(
++                    scene_root,
++                    "covisibility",
++                    covisibility_version_key,
++                    covisibility_map_name,
++                )
++                pairwise_covisibility = load_data(covisibility_map_path, "mmap")
++            except (StopIteration, FileNotFoundError):
++                pairwise_covisibility = None
++
++        # If no covisibility map, create a dummy one (all views are covisible)
++        if pairwise_covisibility is None:
++            pairwise_covisibility = np.ones((num_views_in_scene, num_views_in_scene))
++
++        # Get the indices of the N views in the scene
++        view_indices = self._sample_view_indices(
++            num_views_to_sample,
++            num_views_in_scene,
++            pairwise_covisibility,
++            use_bidirectional_covis=False,
++        )
++
++        # Get the views corresponding to the selected view indices
++        views = []
++        for view_index in view_indices:
++            # Load the data corresponding to the view
++            view_file_name = scene_file_names[view_index]
++            view_data = load_frame(
++                scene_root,
++                view_file_name,
++                modalities=["image", "depth"],
++                scene_meta=scene_meta,
++            )
++
++            # Convert necessary data to numpy
++            image = view_data["image"].permute(1, 2, 0).numpy()
++            image = (image * 255).astype(np.uint8)
++
++            depthmap = view_data["depth"].numpy().astype(np.float32)
++            intrinsics = view_data["intrinsics"].numpy().astype(np.float32)
++            c2w_pose = view_data["extrinsics"].numpy().astype(np.float32)
++
++            # Resize the data to match the desired resolution
++            image, depthmap, intrinsics = self._crop_resize_if_necessary(
++                image=image,
++                resolution=resolution,
++                depthmap=depthmap,
++                intrinsics=intrinsics,
++            )
++
++            # Append the view dictionary to the list of views
++            view_dict = dict(
++                img=image,
++                depthmap=depthmap,
++                camera_pose=c2w_pose,  # cam2world
++                camera_intrinsics=intrinsics,
++                dataset=self.dataset_name,
++                label=scene_name,
++                instance=os.path.join("images", str(view_file_name)),
++            )
++            views.append(view_dict)
++
++        return views
+diff --git a/mapanything/datasets/wai/benchmark_wai.py b/mapanything/datasets/wai/benchmark_wai.py
+new file mode 100644
+index 0000000..6289b3f
+--- /dev/null
++++ b/mapanything/datasets/wai/benchmark_wai.py
+@@ -0,0 +1,79 @@
++# Copyright (c) Meta Platforms, Inc. and affiliates.
++#
++# This source code is licensed under the Apache License, Version 2.0
++# found in the LICENSE file in the root directory of this source tree.
++
++"""
++Benchmark WAI datasets (WAI_Dataset_benchmark) for the zero-shot feed-forward track.
++
++Covers the eight benchmark sequences:
++    umn2023_corn, umn2023_soy,
++    umn2024_corn1, umn2024_corn2,
++    umn2025_wheat, umn2025_oat, umn2025_corn, umn2025_soybean
++
++All of them use the same WAI layout (``images/ depth/ scene_meta.json`` per scene)
++and are read by ``BaseCornDataset``. Scene lists are read from
++``<mapanything_dataset_metadata_dir>/<split>/<key>_scene_list_<split>.npy``; the data root
++and the metadata dir are set by the machine config (``machine=uav3dcrop``).
++
++A small factory creates one subclass per sequence so that each has a distinct class
++name: the benchmark script uses the class name as a dict key, so identical names would
++collide and drop all but one dataset.
++"""
++
++import os
++import numpy as np
++from mapanything.datasets.base.base_corn_dataset import BaseCornDataset
++
++
++class _BenchmarkWAIBase(BaseCornDataset):
++    """Base class; subclasses override ``dataset_key`` to pick the split npy."""
++
++    dataset_key: str = ""
++
++    def _load_data(self):
++        split_metadata_path = os.path.join(
++            self.dataset_metadata_dir,
++            self.split,
++            f"{self.dataset_key}_scene_list_{self.split}.npy",
++        )
++        split_scene_list = np.load(split_metadata_path, allow_pickle=True)
++        if not self.sample_specific_scene:
++            self.scenes = list(split_scene_list)
++        else:
++            self.scenes = [self.specific_scene_name]
++        self.num_of_scenes = len(self.scenes)
++        self.dataset_name = self.dataset_key.upper()
++
++
++BENCHMARK_DATASET_KEYS = [
++    "umn2023_corn", "umn2023_soy",
++    "umn2024_corn1", "umn2024_corn2",
++    "umn2025_wheat", "umn2025_oat", "umn2025_corn", "umn2025_soybean",
++]
++
++
++def _class_name(key: str) -> str:
++    """umn2024_corn1 -> UMN2024Corn1WAIBenchmark; umn2025_corn -> UMN2025CornWAIBenchmark."""
++    parts = key.split("_")
++    pieces = []
++    for p in parts:
++        if not p:
++            continue
++        # keep all-uppercase tokens as-is; capitalize first letter of lowercase ones
++        pieces.append(p if p.isupper() or any(c.isdigit() for c in p) and p[0].isupper()
++                      else p[0].upper() + p[1:])
++    # umn2024 -> Umn2024; force UMN prefix uppercase
++    first = pieces[0]
++    if first.lower().startswith("umn"):
++        pieces[0] = "UMN" + first[3:]
++    return "".join(pieces) + "WAIBenchmark"
++
++
++# Dynamically create one subclass per dataset and expose at module level
++__all__ = []
++for _key in BENCHMARK_DATASET_KEYS:
++    _name = _class_name(_key)
++    _cls = type(_name, (_BenchmarkWAIBase,), {"dataset_key": _key})
++    globals()[_name] = _cls
++    __all__.append(_name)
+diff --git a/mapanything/utils/wai/io.py b/mapanything/utils/wai/io.py
+index fbb5290..3bb45c0 100644
+--- a/mapanything/utils/wai/io.py
++++ b/mapanything/utils/wai/io.py
+@@ -26,6 +26,7 @@ from PIL import Image, PngImagePlugin
+ from plyfile import PlyData, PlyElement
+ from safetensors.torch import load_file as load_sft, save_file as save_sft
+ from torchvision.io import decode_image
++from torchvision.io import read_image
+ from yaml import CLoader
+ 
+ from mapanything.utils.wai.ops import (
+@@ -359,7 +360,11 @@ def _load_image(
+ 
+     # Fastest way to load into torch tensor
+     if resize is None and fmt == "torch":
+-        return decode_image(str(fname)).float() / 255.0
++        try:
++            return decode_image(str(fname)).float() / 255.0
++        except Exception:
++            # Fall back to read_image if decode_image cannot handle the file
++            return read_image(str(fname)).float() / 255.0
+ 
+     # Load using PIL
+     with open(fname, "rb") as f:
+diff --git a/mapanything_dataset_metadata_benchmark/train/umn2023_corn_scene_list_train.npy b/mapanything_dataset_metadata_benchmark/train/umn2023_corn_scene_list_train.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..fd0c3a125d72e09759a049a80f2b079be3d44d25
+GIT binary patch
+literal 417
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5J}>I+{8PwF(pft_GH=VvG!6&?A;tnp;q*7oVJ8l&Y6onp2XQSX7i)Ii-gu
+zz9=<0Kd-o?s5H4`%H%0MtYDQ>df4+)AW9}r@n&e9;>?&drF}}!6b)}iZ?4uU8O%Mb
+zDJ7K!sUR&({uWa@J0P;mJ&ZL|{QUg9{sRG+@U}0RlGGVHMWct?C9%@Lz%br9zbJ1C
+plxK#_GeqGT86e9Up~xAdm||>>tkT2?nP-Z^v#@~3r2^fg2LPg3h%o>F
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/train/umn2023_soy_scene_list_train.npy b/mapanything_dataset_metadata_benchmark/train/umn2023_soy_scene_list_train.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..81f36392c112c8a78e74c42b97bdc330b61698de
+GIT binary patch
+literal 394
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5KlwnmP)#3X}k@29~M+86coXEUz@Tpi(bBIlm}XFSj(OBr~z7D6w)%4^Mni
+zYI1&FaY<2Wa><m*Q+imzDyQ_Y=cPcDOrGM+&^pDLF=<Nsl%OdZ-i+Ryty40XdstIS
+zDhpCUTA2JTrgU~dWSM&yYo_@5`FZ^Z0x;oiUos`BGj@tb50^_~rGbH2d~iO{Vlc-L
+jnPX&tBx8guV{C{dV{DGZF)>2om?Cp5EWk3UK+E+2uttF`
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/train/umn2024_corn1_scene_list_train.npy b/mapanything_dataset_metadata_benchmark/train/umn2024_corn1_scene_list_train.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..56a99be90480eef54ddb700b188ba262b2437e28
+GIT binary patch
+literal 382
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5NXrnmP)#3X}k@29~Lx86coXEUz@Tpi(bBIlm}XFSj(OBr~z7D6w)%4^Mni
+zYI1&FaY<2Wa><m*Q+imzDyQ_Y=cPcDOrGM+&^pDLF=<Nsl%OdZ-i+Stty40XdstIS
+zDhpCUTA2JTrgU~dWSM&yYo_@5`FZ^Z0x;oiUos`BGj@tb506V?rGbHAymNk0o*~d`
+h5ZBNYg==hv!ZksaHAR)Rv_w{HXk-B8rUEV00|0pfd-ebT
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/train/umn2024_corn2_scene_list_train.npy b/mapanything_dataset_metadata_benchmark/train/umn2024_corn2_scene_list_train.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..c87fa92ef6a32b12dc2f8dca1ff7915a38dfdf2e
+GIT binary patch
+literal 382
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5NXrnmP)#3X}k@29~Lx86coXEUz@Tpi(bBIlm}XFSj(OBr~z7D6w)%4^Mni
+zYI1&FaY<2Wa><m*Q+imzDyQ_Y=cPcDOrGM+&^pDLF=<Nsl%OdZ-i+Stty40XdstIS
+zDhpCUTA2JTrgU~dWSM&yYo_@5`FZ^Z0x;oiUos`BGj@tb506V?rGbHAymNk0o)OS$
+h5ZBNYg==hv!ZksaHAR)Rv_w{HXk-B8rUEV00|0t%d;I_a
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/train/umn2025_corn_scene_list_train.npy b/mapanything_dataset_metadata_benchmark/train/umn2025_corn_scene_list_train.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..7baff833919b0e844eb990ed6610b27984ab8528
+GIT binary patch
+literal 403
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5KlwnmP)#3X}k@29~KDj0|AVBbHa1TTrPNpPXNms+U`uQ<9ljRFqgbrH3cJ
+zC^b1huehYBG`VET<S9L@V3kvP*z-~#N+wV7W@w$_%$PK#eM-<24R1zo&ekaz%ss3r
+zC6xuKAT3P(7E?MqAhOIoj5SmI{QSKB0|A)uwlA5I)EPTPqleoivC_c6Jl;9KC~pdc
+mXJmoQGd4!%nHV7ROpQ=@mdHFa6rMSX4VGpQm8n2i=m7vkc!OyG
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/train/umn2025_oat_scene_list_train.npy b/mapanything_dataset_metadata_benchmark/train/umn2025_oat_scene_list_train.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..194dcbc29e1d2666d5375acc5e79eea8f1af2e2d
+GIT binary patch
+literal 433
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5J~sI+{8PwF(pft_GH=YK#nE&?A;tnp;q*7oVJ8l&Y6onp2XQSX7i)Ii-gu
+zz9=<0Kd-o?s5H4`%H%0MtYDQ>df4+)AW9}r@n&e9;>?&drF}}!6b)}iZ=TjE8O%Mb
+zDJ7K!sUR&({uWa@J0P;mJ&ZL|{QUg9{sRG+@U}0RlGGVHMWctyC9%@Lz%brFv1AIA
+tV~)fzG(zGSAuBU7L6)&V;usqsbBvKWW=I?pWMwAErkO%4O$EA94*(8mjHLho
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/train/umn2025_soybean_scene_list_train.npy b/mapanything_dataset_metadata_benchmark/train/umn2025_soybean_scene_list_train.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..aa411f87f80d6cbf8800b3ade0aea6da29cb2e38
+GIT binary patch
+literal 430
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5KlwnmP)#3X}k@29~MHj0|AVBbHa1TTrPNpPXNms+U`uQ<9ljRFqgbrH3cJ
+zC^b1huehYBG`VET<S9L@V3kvP*z-~#N+wV7W@w$_%$PK#eM-<24R1zo&ekaz%ss3r
+zC6xuKAT3P(7E?MqAhOIoj5SmI{QSKB0|A)uwlA5I)EPTPqleEWvC_c6Jia);GAT7N
+pZwf@f$O28k*ceT~!~jje)CgU`5>3DiUBDdOT1zvymQ<hv^#H7ekM;ln
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/train/umn2025_wheat_scene_list_train.npy b/mapanything_dataset_metadata_benchmark/train/umn2025_wheat_scene_list_train.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..0e7854597043e16e73cb67179138a672096bab61
+GIT binary patch
+literal 457
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5J~sI+{8PwF(pft_GH=c8m;Q&?A;tnp;q*7oVJ8l&Y6onp2XQSX7i)Ii-gu
+zz9=<0Kd-o?s5H4`%H%0MtYDQ>df4+)AW9}r@n&e9;>?&drF}}!6b)}iZ=TjE8O%Mb
+zDJ7K!sUR&({uWa@J0P;mJ&ZL|{QUg9{sRG+@U}0RlGGVHMWctuC9%@Lz%V{MBQ>!E
+wXf>E?j>0uGLg5;rDmF4fm9;?O8XKT;jZwK~C|na%#U`jGo5Gxt3Us?30BSOp(EtDd
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/val/umn2023_corn_scene_list_val.npy b/mapanything_dataset_metadata_benchmark/val/umn2023_corn_scene_list_val.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..fa620ebfbe6392172379345f68b0e67f7cb68c23
+GIT binary patch
+literal 305
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5Hz#nmP)#3X}k@29~MI7$BfWEUz@Tpi(bBIlm}XFSj(OBr~z7D6w)%4^Mni
+zYI1&FaY<2Wa><m*Q+imzDyQ_Y=cPcDOrGM+&^pDLF=<Nsl%OdZ-i+Q%ty40XdstIS
+zDhpCUTA2JTrgU~dWSM&yYo_@5`FZ^Z0x;oiUos`BGj@tb54THVrGcSgymNk0-V_MW
+M#2ms)1**{l0PjU&BLDyZ
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/val/umn2023_soy_scene_list_val.npy b/mapanything_dataset_metadata_benchmark/val/umn2023_soy_scene_list_val.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..65e978bb2ca1adaa5fc15dbb6dacf3dc1aaab647
+GIT binary patch
+literal 303
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5Hz#nmP)#3X}k@29~Ky7$BfWEUz@Tpi(bBIlm}XFSj(OBr~z7D6w)%4^Mni
+zYI1&FaY<2Wa><m*Q+imzDyQ_Y=cPcDOrGM+&^pDLF=<Nsl%OdZ-i+Q%ty40XdstIS
+zDhpCUTA2JTrgU~dWSM&yYo_@5`FZ^Z0x;oiUos`BGj@tb50^_~rGcSgd~iO{Vlc<V
+L9Lz}ts?Y-fD_&u7
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/val/umn2024_corn1_scene_list_val.npy b/mapanything_dataset_metadata_benchmark/val/umn2024_corn1_scene_list_val.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..90108c08c086acf789b236c47016638cc2e8cc54
+GIT binary patch
+literal 307
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5Hz#nmP)#3X}k@29~KS7$BfWEUz@Tpi(bBIlm}XFSj(OBr~z7D6w)%4^Mni
+zYI1&FaY<2Wa><m*Q+imzDyQ_Y=cPcDOrGM+&^pDLF=<Nsl%OdZ-i+Q%ty40XdstIS
+zDhpCUTA2JTrgU~dWSM&yYo_@5`FZ^Z0x;oiUos`BGj@tb506V?rGb%gymNk0o*~d`
+O5ZBxU%1s5T(gOgo9b$|C
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/val/umn2024_corn2_scene_list_val.npy b/mapanything_dataset_metadata_benchmark/val/umn2024_corn2_scene_list_val.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..1cd6c9e3b0606ba59ea83d2d1657040cba42216c
+GIT binary patch
+literal 307
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5Hz#nmP)#3X}k@29~KS7$BfWEUz@Tpi(bBIlm}XFSj(OBr~z7D6w)%4^Mni
+zYI1&FaY<2Wa><m*Q+imzDyQ_Y=cPcDOrGM+&^pDLF=<Nsl%OdZ-i+Q%ty40XdstIS
+zDhpCUTA2JTrgU~dWSM&yYo_@5`FZ^Z0x;oiUos`BGj@tb506V?rGb%gymNk0o)OS$
+O5ZBxU%1s5T(gOgoI%19h
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/val/umn2025_corn_scene_list_val.npy b/mapanything_dataset_metadata_benchmark/val/umn2025_corn_scene_list_val.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..4f9a9a8bcc5897eba5c31a5993fbc98e316dddad
+GIT binary patch
+literal 319
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5MMLnmP)#3X}k@29~K?7$BfWEUz@Tpi(bBIlm}XFSj(OBr~z7D6w)%4^Mni
+zYI1&FaY<2Wa><m*Q+imzDyQ_Y=cPcDOrGM+&^pDLF=<Nsl%OdZ-i+SNty40XdstIS
+zDhpCUTA2JTrgU~dWSM&yYo_@5`FZ^Z0x;oiUos`BGj@tb54THVrGcSkymNk0-V_MW
+Q#2lGtVGQA=0(IyC0C)Lk5C8xG
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/val/umn2025_oat_scene_list_val.npy b/mapanything_dataset_metadata_benchmark/val/umn2025_oat_scene_list_val.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..661239ab4f04e6cfc558be64158a14d6082f46fd
+GIT binary patch
+literal 303
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5Hz#nmP)#3X}k@29~Ky7$BfWEUz@Tpi(bBIlm}XFSj(OBr~z7D6w)%4^Mni
+zYI1&FaY<2Wa><m*Q+imzDyQ_Y=cPcDOrGM+&^pDLF=<Nsl%OdZ-i+Q%ty40XdstIS
+zDhpCUTA2JTrgU~dWSM&yYo_@5`FZ^Z0x;oiUos`BGj@tb50^_~rGcSkynkZJ6bQ$}
+L9Lz}ts?Y-fDTQH6
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/val/umn2025_soybean_scene_list_val.npy b/mapanything_dataset_metadata_benchmark/val/umn2025_soybean_scene_list_val.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..a9abe783c9f2f9998baa1bdce7fb2d679be87904
+GIT binary patch
+literal 328
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5MMLnmP)#3X}k@29~LN86coXEUz@Tpi(bBIlm}XFSj(OBr~z7D6w)%4^Mni
+zYI1&FaY<2Wa><m*Q+imzDyQ_Y=cPcDOrGM+&^pDLF=<Nsl%OdZ-i+SNty40XdstIS
+zDhpCUTA2JTrgU~dWSM&yYo_@5`FZ^Z0x;oiUos`BGj@tb51&h7rGcSkd~tqdQfgw}
+T6o`O{IhuflF<c-Os8tUDM)PYw
+
+literal 0
+HcmV?d00001
+
+diff --git a/mapanything_dataset_metadata_benchmark/val/umn2025_wheat_scene_list_val.npy b/mapanything_dataset_metadata_benchmark/val/umn2025_wheat_scene_list_val.npy
+new file mode 100644
+index 0000000000000000000000000000000000000000..607a5189c688d4d0ac3809c24d6d7f4162cb3ec3
+GIT binary patch
+literal 307
+zcmbR27wQ`j$;eQ~P_3SlTAW;@Zl$1J<FBrxpq`drR8o|f7oT60k_r-bOUx-w1&SAE
+zBo?Fs`5Hz#nmP)#3X}k@29~KS7$BfWEUz@Tpi(bBIlm}XFSj(OBr~z7D6w)%4^Mni
+zYI1&FaY<2Wa><m*Q+imzDyQ_Y=cPcDOrGM+&^pDLF=<Nsl%OdZ-i+Q%ty40XdstIS
+zDhpCUTA2JTrgU~dWSM&yYo_@5`FZ^Z0x;oiUos`BGj@tb506V?rGcSke0WA`VhPY{
+O5ZA;U%1s5T(gOgu>tg)?
+
+literal 0
+HcmV?d00001
+

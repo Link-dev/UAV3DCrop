@@ -1,0 +1,327 @@
+diff --git a/configs/uav3dcrop_coarse.yaml b/configs/uav3dcrop_coarse.yaml
+new file mode 100644
+index 0000000..483dd1c
+--- /dev/null
++++ b/configs/uav3dcrop_coarse.yaml
+@@ -0,0 +1,15 @@
++# UAV3DCrop, CityGaussian stage 1: coarse global model (30k steps from the SfM points).
++logger: tensorboard
++trainer:
++  max_steps: 30000
++data:
++  image_uint8: true
++  parser:
++    class_path: Colmap
++    init_args:
++      image_dir: images_undistort
++      down_sample_factor: 1
++      split_mode: experiment
++      eval_image_select_mode: list
++      eval_list: split.json
++      points_from: sfm
+diff --git a/configs/uav3dcrop_finetune.yaml b/configs/uav3dcrop_finetune.yaml
+new file mode 100644
+index 0000000..69ea499
+--- /dev/null
++++ b/configs/uav3dcrop_finetune.yaml
+@@ -0,0 +1,32 @@
++# UAV3DCrop, CityGaussian stage 2: partition the coarse model into blocks and fine-tune each
++# block from it (30k steps), then merge. utils/partition_citygs.py reads block_dim and
++# content_threshold below and assigns every training image to the blocks it covers.
++# COARSE_CKPT is replaced by the stage-1 checkpoint path (see RUN.md).
++logger: tensorboard
++model:
++  initialize_from: COARSE_CKPT
++  overwrite_config: false
++  gaussian:
++    init_args:
++      optimization:
++        means_lr_init: 0.000064
++        means_lr_scheduler:
++          lr_final: 0.00000064
++        scales_lr: 0.004
++trainer:
++  max_steps: 30000
++data:
++  image_uint8: true
++  parser:
++    class_path: ColmapBlock
++    init_args:
++      image_dir: images_undistort
++      down_sample_factor: 1
++      split_mode: experiment
++      eval_image_select_mode: list
++      eval_list: split.json
++      points_from: sfm
++      content_threshold: 0.05
++      block_dim:
++      - 2
++      - 2
+diff --git a/internal/dataparsers/colmap_block_dataparser.py b/internal/dataparsers/colmap_block_dataparser.py
+index 3ccb100..bfc91ec 100644
+--- a/internal/dataparsers/colmap_block_dataparser.py
++++ b/internal/dataparsers/colmap_block_dataparser.py
+@@ -45,7 +45,7 @@ class ColmapBlock(Colmap):
+     content_threshold: float = 0.08
+ 
+     def instantiate(self, path: str, output_path: str, global_rank: int) -> DataParser:
+-        return ColmapDataParser(path, output_path, global_rank, self)
++        return ColmapBlockDataParser(path, output_path, global_rank, self)
+ 
+ class ColmapBlockDataParser(ColmapDataParser):
+     def __init__(self, path: str, output_path: str, global_rank: int, params: ColmapBlock) -> None:
+diff --git a/internal/dataparsers/colmap_dataparser.py b/internal/dataparsers/colmap_dataparser.py
+index 482a236..0b0b06b 100644
+--- a/internal/dataparsers/colmap_dataparser.py
++++ b/internal/dataparsers/colmap_dataparser.py
+@@ -516,21 +516,44 @@ class ColmapDataParser(DataParser):
+     def build_eval_list_split_indices(self, image_name_list) -> Tuple[list, list]:
+         assert self.params.eval_list is not None
+ 
++        # allow eval_list to be a path relative to the data root
++        eval_list_path = self.params.eval_list
++        if not os.path.isabs(eval_list_path) and not os.path.exists(eval_list_path):
++            cand = os.path.join(self.path, eval_list_path)
++            if os.path.exists(cand):
++                eval_list_path = cand
++
+         eval_image_set = {}
+-        with open(self.params.eval_list, "r") as f:
+-            for row in f:
+-                row = row.rstrip("\n")
+-                eval_image_set[row] = True
++        train_image_set = None  # split.json only: images listed under "train"
++        if eval_list_path.endswith(".json"):
++            # split.json format {"train":[...], "val":[...], "test":[...]}; val (+test) is the eval set
++            with open(eval_list_path, "r") as f:
++                split = json.load(f)
++            for n in split.get("val", []) + split.get("test", []):
++                eval_image_set[os.path.basename(n)] = True
++            train_image_set = {os.path.basename(n) for n in split.get("train", [])}
++        else:
++            # one file name per line
++            with open(eval_list_path, "r") as f:
++                for row in f:
++                    row = row.rstrip("\n")
++                    if row:
++                        eval_image_set[row] = True
+ 
+         train_set_indices = []
+         eval_set_indices = []
+ 
+         for idx, name in enumerate(image_name_list):
+-            if name in eval_image_set:
++            # match the full name first, then the basename (tolerates sub-directory/extension differences)
++            key = name if name in eval_image_set else os.path.basename(name)
++            if key in eval_image_set:
+                 eval_set_indices.append(idx)
+-                del eval_image_set[name]
++                del eval_image_set[key]
+                 if self.params.split_mode == "experiment":
+                     continue
++            elif train_image_set is not None and name not in train_image_set \
++                    and os.path.basename(name) not in train_image_set:
++                continue  # listed in neither "train" nor "val"/"test" of split.json: not used
+             train_set_indices.append(idx)
+ 
+         if len(eval_image_set) != 0:
+diff --git a/internal/gaussian_splatting.py b/internal/gaussian_splatting.py
+index de398e5..96d3211 100644
+--- a/internal/gaussian_splatting.py
++++ b/internal/gaussian_splatting.py
+@@ -369,7 +369,7 @@ class GaussianSplatting(LightningModule):
+         self.log_metrics(metrics, prog_bar, prefix="train", on_step=True, on_epoch=False)
+ 
+         # log learning rate and gaussian count every 100 iterations (without plus one step)
+-        if self.trainer.global_step % 100 == 0:
++        if self.trainer.global_step % 100 == 0 and self.logger is not None:
+             metrics_to_log = {
+                 "train/gaussians_count": self.gaussian_model.get_xyz.shape[0],
+             }
+@@ -502,23 +502,41 @@ class GaussianSplatting(LightningModule):
+         camera, image_info, _ = batch
+         gt_image = image_info[1]
+ 
+-        # forward
+-        if self.hparams["test_speed"]:
+-            torch.cuda.synchronize()
+-            start = time.time()
+-            outputs = self(camera)
+-            torch.cuda.synchronize()
+-            end = time.time()
+-
+-            metrics, prog_bar = self.metric.get_validate_metrics(self, self.gaussian_model, batch, outputs)
+-            prog_bar["time(s)"] = True
+-            metrics["time(s)"] = torch.tensor(end - start)
+-        else:
+-            outputs = self(camera)
+-            metrics, prog_bar = self.metric.get_validate_metrics(self, self.gaussian_model, batch, outputs)
++        # forward — always timed, so eval/validation logs time(s) -> FPS without --test_speed
++        torch.cuda.synchronize()
++        start = time.time()
++        outputs = self(camera)
++        torch.cuda.synchronize()
++        end = time.time()
++
++        metrics, prog_bar = self.metric.get_validate_metrics(self, self.gaussian_model, batch, outputs)
++        metrics["time(s)"] = torch.tensor(end - start)
++        prog_bar["time(s)"] = bool(self.hparams["test_speed"])   # shown on the progress bar only with --test_speed, to avoid clutter during training
+         self.log_metrics(metrics, prog_bar, prefix=name, on_step=False, on_epoch=True)
+         self.val_metrics.append((image_info[0], metrics))
+ 
++        # --- dump normalized expected DEPTH as raw .npy for val (opt-in via SAVE_VAL_DEPTH) ---
++        # alpha-weighted expected depth = (sum z*a*T) / (sum a*T), sparse/0 frame (meters).
++        # Named <imgstem>.npy to match GT depth/<stem>_depth.tif.
++        if os.environ.get("SAVE_VAL_DEPTH") and self.trainer.global_rank == 0:
++            import numpy as np
++            depth_dir = os.environ.get(
++                "SAVE_VAL_DEPTH_DIR", os.path.join(self.hparams["output_path"], "val_depth"))
++            os.makedirs(depth_dir, exist_ok=True)
++            with torch.no_grad():
++                bg0 = torch.zeros(3, dtype=torch.float32, device=camera.R.device)
++                d_sum = self.renderer(camera, self.gaussian_model, bg_color=bg0,
++                                      render_types=["depth"])["depth"]              # sum z*a*T
++                ones = torch.ones_like(self.gaussian_model.get_xyz)
++                acc = self.renderer(camera, self.gaussian_model, bg_color=bg0,
++                                    override_color=ones, render_types=["rgb"])["render"]  # sum a*T = O
++            ds = d_sum[0] if d_sum.dim() == 3 else d_sum
++            oc = acc[0] if acc.dim() == 3 else acc
++            depth = ds / (oc + 1e-8)
++            depth[oc < 1e-4] = 0.0
++            stem = os.path.splitext(os.path.basename(image_info[0]))[0]
++            np.save(os.path.join(depth_dir, stem + ".npy"), depth.detach().float().cpu().numpy())
++
+         # write validation image
+         if self.trainer.global_rank == 0 and self.hparams["save_val_output"] is True and (
+                 self.hparams["max_save_val_output"] < 0 or batch_idx < self.hparams["max_save_val_output"]
+@@ -583,6 +601,13 @@ class GaussianSplatting(LightningModule):
+         with open(os.path.join(self.hparams["output_path"], "results.txt"),'w') as file:
+             for k in sorted (self._trainer.logged_metrics.keys()):
+                 file.write("%s: %s, \n" % (k, self._trainer.logged_metrics[k].item()))
++            # append FPS = 1 / mean time(s) (validation_step always times, with CUDA sync)
++            _time_keys = [k for k in self._trainer.logged_metrics.keys() if k.endswith("time(s)")]
++            for _tk in _time_keys:
++                _mt = self._trainer.logged_metrics[_tk].item()
++                if _mt > 0:
++                    _prefix = _tk.rsplit("/", 1)[0] if "/" in _tk else name
++                    file.write("%s/fps: %s, \n" % (_prefix, 1.0 / _mt))
+ 
+         # save metrics
+         if self.hparams["save_val_metrics"] is True and self.global_rank == 0 and len(self.val_metrics) > 0:
+@@ -613,6 +638,15 @@ class GaussianSplatting(LightningModule):
+                     mean_metrics.append("{:.8f}".format(torch.stack(metric_list_key_by_name[i]).mean(dim=0).item()))
+                 metrics_writer.writerow(mean_metrics)
+ 
++                # FPS = 1 / mean(time(s))  (time(s) is logged for every validation step)
++                if "time(s)" in metric_list_key_by_name:
++                    mean_time = torch.stack(metric_list_key_by_name["time(s)"]).float().mean().item()
++                    fps = 1.0 / mean_time if mean_time > 0 else 0.0
++                    metrics_writer.writerow([])
++                    metrics_writer.writerow(["FPS", "{:.4f}".format(fps)])
++                    metrics_writer.writerow(["mean_time_ms", "{:.4f}".format(mean_time * 1000)])
++                    print(f"  [test_speed] {name}: mean {mean_time*1000:.2f} ms/img, FPS = {fps:.2f}")
++
+         self.val_metrics.clear()
+ 
+     def on_test_epoch_start(self) -> None:
+diff --git a/qc_callback.py b/qc_callback.py
+new file mode 100644
+index 0000000..7487e0d
+--- /dev/null
++++ b/qc_callback.py
+@@ -0,0 +1,95 @@
++"""Large-Gaussian QC filter for CityGaussian, injected as a Lightning callback.
++
++Does NOT modify any original file. Enable by appending on the CLI:
++    --trainer.callbacks+=qc_callback.QCFilterCallback
++and setting env:
++    QC_MODE=aabb|size|both  QC_SCENE=<scene>  [QC_AABB_MULT QC_MAX_SCALE_M QC_PCT_LO QC_PCT_HI QC_METRIC_SCALE]
++When QC_MODE is unset/none the callback is a strict no-op (original behaviour preserved).
++
++On test/validation start it prunes the loaded in-memory Gaussians (means/scales/opacities/...):
++    keep = (center inside 1.25x percentile-AABB) AND (max physical axis * metric_scale <= 2 m)
++The checkpoint is never written. Pair with SAVE_VAL_DEPTH_DIR=<...>_S{n} to keep S0 depth intact.
++"""
++import os
++import json
++import numpy as np
++import torch
++from lightning.pytorch.callbacks import Callback
++
++BENCH = os.environ.get("UAV3DCROP_ROOT")   # dataset root: <root>/<scene>/transform_undistort.json
++
++
++def _metric_scale(scene):
++    if not BENCH:
++        raise RuntimeError("Set UAV3DCROP_ROOT to the dataset root (the folder that contains <scene>/transform_undistort.json).")
++    scale = json.load(open(f"{BENCH}/{scene}/transform_undistort.json"))["scale"]
++    return scale
++
++
++class QCFilterCallback(Callback):
++    def __init__(self):
++        super().__init__()
++        self._done = False
++
++    def _apply(self, pl_module):
++        mode = os.environ.get("QC_MODE", "none")
++        if mode == "none" or self._done:
++            return
++        self._done = True
++        gm = pl_module.gaussian_model
++        scene = os.environ["QC_SCENE"]
++        mult = float(os.environ.get("QC_AABB_MULT", "1.25"))
++        max_scale_m = float(os.environ.get("QC_MAX_SCALE_M", "2.0"))
++        plo = float(os.environ.get("QC_PCT_LO", "0.5"))
++        phi = float(os.environ.get("QC_PCT_HI", "99.5"))
++        metric_scale = float(os.environ.get("QC_METRIC_SCALE", _metric_scale(scene)))
++
++        with torch.no_grad():
++            means = gm.get_xyz.detach()
++            N = means.shape[0]
++            mnp = means.cpu().numpy()
++            amin = torch.tensor(np.percentile(mnp, plo, axis=0), device=means.device, dtype=means.dtype)
++            amax = torch.tensor(np.percentile(mnp, phi, axis=0), device=means.device, dtype=means.dtype)
++            center = (amin + amax) / 2
++            half = (amax - amin) / 2
++            inside = torch.all(torch.abs(means - center) <= half * mult, dim=-1)
++            within = (gm.get_scaling.detach().max(dim=-1).values * metric_scale) <= max_scale_m
++            if mode == "aabb":
++                keep = inside
++            elif mode == "size":
++                keep = within
++            elif mode == "both":
++                keep = inside & within
++            else:
++                raise ValueError(mode)
++            excluded = int((~keep).sum())
++
++            # prune every per-Gaussian tensor in place (gm.gaussians is an nn.ParameterDict;
++            # reassign each key rather than replacing the registered submodule)
++            for k in list(gm.gaussians.keys()):
++                v = gm.gaussians[k]
++                if torch.is_tensor(v) and v.shape[0] == N:
++                    gm.gaussians[k] = torch.nn.Parameter(v[keep].detach(), requires_grad=False)
++
++        info = {"qc_mode": mode, "aabb_source": f"gauss_percentile_{plo}_{phi}",
++                "aabb_multiplier": mult, "max_gaussian_scale_m": max_scale_m,
++                "metric_scale_m_per_colmap_unit": metric_scale, "scene": scene,
++                "gaussian_count": int(N), "kept_gaussian_count": int(keep.sum()),
++                "excluded_gaussian_count": excluded,
++                "excluded_fraction": excluded / N if N else 0.0,
++                "outside_expanded_aabb_count": int((~inside).sum()),
++                "oversized_gaussian_count": int((~within).sum()), "checkpoint_modified": False}
++        dd = os.environ.get("SAVE_VAL_DEPTH_DIR")
++        if dd:
++            os.makedirs(dd, exist_ok=True)
++            json.dump(info, open(os.path.join(dd, "qc_meta.json"), "w"), indent=2)
++        print(f"[QC {mode}] {scene} metric_scale={metric_scale:.6g} kept {info['kept_gaussian_count']:,}/{N:,} "
++              f"excluded {excluded:,} ({info['excluded_fraction']*100:.2f}%) "
++              f"[outside={info['outside_expanded_aabb_count']:,} oversized={info['oversized_gaussian_count']:,}]",
++              flush=True)
++
++    def on_test_start(self, trainer, pl_module):
++        self._apply(pl_module)
++
++    def on_validation_start(self, trainer, pl_module):
++        self._apply(pl_module)

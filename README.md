@@ -22,6 +22,11 @@ https://link-dev.github.io/UAV3DCrop/
 Both dataset releases are distributed under the Creative Commons Attribution
 4.0 International license (CC BY 4.0).
 
+## Benchmark code
+
+The benchmark code (splits, training settings, geometry export, canopy-height
+estimation, baselines and per-scene results) is in [`benchmark/`](benchmark/README.md).
+
 ## Contact
 
 - Junxiong Zhou — [zhou1743@umn.edu](mailto:zhou1743@umn.edu)
@@ -51,4 +56,5 @@ Machine-readable citation metadata is also provided in
 ## License
 
 Unless otherwise noted, original project-page content and media are available
-under [CC BY 4.0](LICENSE).
+under [CC BY 4.0](LICENSE). The code in `benchmark/` is released under the
+[MIT License](benchmark/LICENSE).

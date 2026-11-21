@@ -1,0 +1,513 @@
+diff --git a/arguments/__init__.py b/arguments/__init__.py
+index 5621002..a2effc9 100755
+--- a/arguments/__init__.py
++++ b/arguments/__init__.py
+@@ -63,6 +63,7 @@ class ModelParams(ParamGroup):
+         self.data_device = "cuda"
+         self.eval = False
+         self.lod = 0
++        self.image_uint8 = False   # keep GT images as uint8 (lossless for 8-bit), 4x less memory, converted to float on use; avoids OOM on large full-res scenes
+ 
+         self.appearance_dim = 32
+         self.lowpoly = False
+diff --git a/gaussian_renderer/__init__.py b/gaussian_renderer/__init__.py
+index 3982888..fe4de6a 100755
+--- a/gaussian_renderer/__init__.py
++++ b/gaussian_renderer/__init__.py
+@@ -183,6 +183,44 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor,
+                 }
+ 
+ 
++def render_depth(viewpoint_camera, pc : GaussianModel, pipe, visible_mask=None, scaling_modifier=1.0):
++    """Alpha-weighted expected depth in the sparse/0 (COLMAP) frame for Scaffold-GS.
++
++    Runs the neural-gaussian MLP once, then rasterizes camera-space z (as color) and
++    all-ones (for accumulated opacity) and normalizes. Same geometry/opacity as the RGB render.
++    Units follow sparse/0 (meters).
++    """
++    xyz, color, opacity, scaling, rot = generate_neural_gaussians(
++        viewpoint_camera, pc, visible_mask, is_training=False)
++
++    W = viewpoint_camera.world_view_transform
++    z = (xyz @ W[:3, :3] + W[3, :3])[:, 2:3]
++    z3 = z.repeat(1, 3)
++    ones = torch.ones_like(z3)
++
++    tanfovx = math.tan(viewpoint_camera.FoVx * 0.5)
++    tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
++    raster_settings = GaussianRasterizationSettings(
++        image_height=int(viewpoint_camera.image_height),
++        image_width=int(viewpoint_camera.image_width),
++        tanfovx=tanfovx, tanfovy=tanfovy,
++        bg=torch.zeros(3, dtype=torch.float32, device="cuda"),   # black bg
++        scale_modifier=scaling_modifier,
++        viewmatrix=viewpoint_camera.world_view_transform,
++        projmatrix=viewpoint_camera.full_proj_transform,
++        sh_degree=1, campos=viewpoint_camera.camera_center,
++        prefiltered=False, debug=pipe.debug)
++    rasterizer = GaussianRasterizer(raster_settings=raster_settings)
++    sp = torch.zeros_like(xyz, device="cuda")
++    kw = dict(means3D=xyz, means2D=sp, shs=None, opacities=opacity,
++              scales=scaling, rotations=rot, cov3D_precomp=None)
++    depth_sum, _ = rasterizer(colors_precomp=z3, **kw)
++    acc, _ = rasterizer(colors_precomp=ones, **kw)
++    depth = depth_sum[0:1] / (acc[0:1] + 1e-8)
++    depth[acc[0:1] < 1e-4] = 0.0
++    return depth
++
++
+ def prefilter_voxel(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None):
+     """
+     Render the scene. 
+diff --git a/metrics.py b/metrics.py
+index 03c10ec..8918f33 100755
+--- a/metrics.py
++++ b/metrics.py
+@@ -29,11 +29,31 @@ def readImages(renders_dir, gt_dir):
+     for fname in os.listdir(renders_dir):
+         render = Image.open(renders_dir / fname)
+         gt = Image.open(gt_dir / fname)
+-        renders.append(tf.to_tensor(render).unsqueeze(0)[:, :3, :, :].cuda())
+-        gts.append(tf.to_tensor(gt).unsqueeze(0)[:, :3, :, :].cuda())
++        renders.append(tf.to_tensor(render).unsqueeze(0)[:, :3, :, :])
++        gts.append(tf.to_tensor(gt).unsqueeze(0)[:, :3, :, :])
+         image_names.append(fname)
+     return renders, gts, image_names
+ 
++
++def lpips_tiled(lpips_fn, img0, img1, max_pixels=5000000):
++    # full-res LPIPS via fp32 row-tiles (avoids 40GB OOM + fp16 NaN); area-weighted mean.
++    _, _, H, W = img0.shape
++    n = max(1, (H * W + max_pixels - 1) // max_pixels)
++    bounds = [(i * H) // n for i in range(n + 1)]
++    acc, total = 0.0, 0
++    for i in range(n):
++        h0, h1 = bounds[i], bounds[i + 1]
++        if h1 <= h0:
++            continue
++        with torch.no_grad():
++            d = lpips_fn(img0[:, :, h0:h1, :], img1[:, :, h0:h1, :]).item()
++        area = (h1 - h0) * W
++        acc += d * area
++        total += area
++        torch.cuda.empty_cache()
++    return torch.tensor(acc / total)
++
++
+ def evaluate(model_paths):
+ 
+     full_dict = {}
+@@ -70,9 +90,14 @@ def evaluate(model_paths):
+                 lpipss = []
+ 
+                 for idx in tqdm(range(len(renders)), desc="Metric evaluation progress"):
+-                    ssims.append(ssim(renders[idx], gts[idx]))
+-                    psnrs.append(psnr(renders[idx], gts[idx]))
+-                    lpipss.append(lpips_fn(renders[idx], gts[idx]).detach())
++                    with torch.no_grad():
++                        render = renders[idx].cuda()
++                        gt = gts[idx].cuda()
++                        ssims.append(ssim(render, gt).cpu())
++                        psnrs.append(psnr(render, gt).cpu())
++                        lpipss.append(lpips_tiled(lpips_fn, render, gt))
++                        del render, gt
++                    torch.cuda.empty_cache()
+ 
+                 print("  SSIM : {:>12.7f}".format(torch.tensor(ssims).mean(), ".5"))
+                 print("  PSNR : {:>12.7f}".format(torch.tensor(psnrs).mean(), ".5"))
+diff --git a/render.py b/render.py
+index b99ab1a..00ea31c 100755
+--- a/render.py
++++ b/render.py
+@@ -23,7 +23,7 @@ os.system('echo $CUDA_VISIBLE_DEVICES')
+ from scene import Scene
+ import json
+ import time
+-from gaussian_renderer import render, prefilter_voxel
++from gaussian_renderer import render, prefilter_voxel, render_depth
+ import torchvision
+ from tqdm import tqdm
+ from utils.general_utils import safe_state
+@@ -58,31 +58,48 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
+         torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
+         torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ".png"))
+ 
+-    t = np.array(t_list[5:])
++    t = np.array(t_list[5:]) if len(t_list) > 5 else np.array(t_list)
+     fps = 1.0 / t.mean()
+     print(f'Test FPS: \033[1;35m{fps:.5f}\033[0m')
+ 
++    # always save FPS
++    with open(os.path.join(model_path, name, "ours_{}".format(iteration), "fps.json"), 'w') as fp:
++        json.dump({"fps": float(fps),
++                   "mean_render_time_ms": float(t.mean() * 1000),
++                   "num_views": int(len(t))}, fp, indent=True)
++
+     with open(os.path.join(model_path, name, "ours_{}".format(iteration), "per_view_count.json"), 'w') as fp:
+-            json.dump(per_view_dict, fp, indent=True)      
++            json.dump(per_view_dict, fp, indent=True)
+      
+-def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool):
++def render_depth_set(model_path, name, iteration, views, gaussians, pipeline, background):
++    depth_path = os.path.join(model_path, name, "ours_{}".format(iteration), "depth")
++    os.makedirs(depth_path, exist_ok=True)
++    for view in tqdm(views, desc="Depth rendering"):
++        voxel_visible_mask = prefilter_voxel(view, gaussians, pipeline, background)
++        d = render_depth(view, gaussians, pipeline, visible_mask=voxel_visible_mask)  # (1,H,W), sparse/0 frame
++        np.save(os.path.join(depth_path, view.image_name + ".npy"), d.squeeze(0).cpu().numpy())
++
++def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, render_depth_flag : bool = False):
+     with torch.no_grad():
+-        gaussians = GaussianModel(dataset.feat_dim, dataset.n_offsets, dataset.voxel_size, dataset.update_depth, dataset.update_init_factor, dataset.update_hierachy_factor, dataset.use_feat_bank, 
++        gaussians = GaussianModel(dataset.feat_dim, dataset.n_offsets, dataset.voxel_size, dataset.update_depth, dataset.update_init_factor, dataset.update_hierachy_factor, dataset.use_feat_bank,
+                               dataset.appearance_dim, dataset.ratio, dataset.add_opacity_dist, dataset.add_cov_dist, dataset.add_color_dist)
+         scene = Scene(dataset, gaussians, load_iteration=iteration, shuffle=False)
+-        
++
+         gaussians.eval()
+ 
+         bg_color = [1,1,1] if dataset.white_background else [0, 0, 0]
+         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
+         if not os.path.exists(dataset.model_path):
+             os.makedirs(dataset.model_path)
+-        
++
+         if not skip_train:
+              render_set(dataset.model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background)
+ 
+         if not skip_test:
+-             render_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background)
++             if render_depth_flag:
++                 render_depth_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background)
++             else:
++                 render_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background)
+ 
+ if __name__ == "__main__":
+     # Set up command line argument parser
+@@ -92,6 +109,7 @@ if __name__ == "__main__":
+     parser.add_argument("--iteration", default=-1, type=int)
+     parser.add_argument("--skip_train", action="store_true")
+     parser.add_argument("--skip_test", action="store_true")
++    parser.add_argument("--render_depth", action="store_true", help="render+save raw val depth (.npy) instead of RGB")
+     parser.add_argument("--quiet", action="store_true")
+     args = get_combined_args(parser)
+     print("Rendering " + args.model_path)
+@@ -99,4 +117,4 @@ if __name__ == "__main__":
+     # Initialize system state (RNG)
+     safe_state(args.quiet)
+ 
+-    render_sets(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test)
++    render_sets(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.render_depth)
+diff --git a/render_depth_qc.py b/render_depth_qc.py
+new file mode 100644
+index 0000000..ba33061
+--- /dev/null
++++ b/render_depth_qc.py
+@@ -0,0 +1,138 @@
++#
++# Standalone QC-filtered depth exporter for Scaffold-GS. Does NOT modify render.py.
++# Scaffold decodes neural Gaussians per view (generate_neural_gaussians), so the
++# large-Gaussian filter (S-series) is applied to the DECODED Gaussians each view:
++#   keep = (decoded center inside 1.25x percentile-AABB) AND (max decoded axis*metric <= 2m)
++# excluded Gaussians are made transparent (opacity=0) for that view's depth render only.
++# AABB box is computed once from the anchor positions (stable scene extent).
++#
++#   --qc_mode none|aabb|size|both   (default none == identical depth to render.py)
++# Output -> test/ours_<it>/depth_S{n}  (S0 = existing 'depth', untouched).
++#
++import torch, os, json, math
++import numpy as np
++from tqdm import tqdm
++from os import makedirs
++from diff_gaussian_rasterization import GaussianRasterizationSettings, GaussianRasterizer
++from scene import Scene
++from gaussian_renderer import prefilter_voxel, generate_neural_gaussians, GaussianModel
++from utils.general_utils import safe_state
++from argparse import ArgumentParser
++from arguments import ModelParams, PipelineParams, get_combined_args
++
++BENCH = os.environ.get("UAV3DCROP_ROOT")   # dataset root: <root>/<scene>/transform_undistort.json
++
++
++def scene_metric_scale(model_path):
++    if not BENCH:
++        raise RuntimeError("Set UAV3DCROP_ROOT to the dataset root (the folder that contains <scene>/transform_undistort.json).")
++    scene = os.path.basename(os.path.dirname(model_path))
++    scale = json.load(open(f"{BENCH}/{scene}/transform_undistort.json"))["scale"]
++    return scale, scene
++
++
++def keep_mask(xyz, scaling, box_c, box_half, mult, max_scale_m, metric_scale, mode):
++    inside = torch.all(torch.abs(xyz - box_c) <= box_half * mult, dim=-1)
++    within = (scaling.max(dim=-1).values * metric_scale) <= max_scale_m
++    if mode == "aabb":
++        return inside, inside, within
++    if mode == "size":
++        return within, inside, within
++    if mode == "both":
++        return inside & within, inside, within
++    return torch.ones_like(inside), inside, within
++
++
++def render_depth_qc_view(view, pc, pipe, visible_mask, box_c, box_half, mult, max_scale_m, metric_scale, mode, counter):
++    xyz, color, opacity, scaling, rot = generate_neural_gaussians(view, pc, visible_mask, is_training=False)
++    keep, inside, within = keep_mask(xyz, scaling, box_c, box_half, mult, max_scale_m, metric_scale, mode)
++    excl = ~keep
++    opacity = opacity.clone()
++    opacity[excl] = 0.0                                          # transparent for this depth render only
++    counter["total"] += int(keep.numel()); counter["excluded"] += int(excl.sum())
++    counter["outside"] += int((~inside).sum()); counter["oversized"] += int((~within).sum())
++
++    W = view.world_view_transform
++    z = (xyz @ W[:3, :3] + W[3, :3])[:, 2:3]
++    z3 = z.repeat(1, 3)
++    ones = torch.ones_like(z3)
++    raster_settings = GaussianRasterizationSettings(
++        image_height=int(view.image_height), image_width=int(view.image_width),
++        tanfovx=math.tan(view.FoVx * 0.5), tanfovy=math.tan(view.FoVy * 0.5),
++        bg=torch.zeros(3, dtype=torch.float32, device="cuda"), scale_modifier=1.0,
++        viewmatrix=view.world_view_transform, projmatrix=view.full_proj_transform,
++        sh_degree=1, campos=view.camera_center, prefiltered=False, debug=pipe.debug)
++    rasterizer = GaussianRasterizer(raster_settings=raster_settings)
++    sp = torch.zeros_like(xyz, device="cuda")
++    kw = dict(means3D=xyz, means2D=sp, shs=None, opacities=opacity, scales=scaling, rotations=rot, cov3D_precomp=None)
++    depth_sum, _ = rasterizer(colors_precomp=z3, **kw)
++    acc, _ = rasterizer(colors_precomp=ones, **kw)
++    depth = depth_sum[0:1] / (acc[0:1] + 1e-8)
++    depth[acc[0:1] < 1e-4] = 0.0
++    return depth
++
++
++def run(dataset, iteration, pipeline, mode, mult, max_scale_m, tag, metric_override, plo, phi):
++    with torch.no_grad():
++        gaussians = GaussianModel(dataset.feat_dim, dataset.n_offsets, dataset.voxel_size,
++                                  dataset.update_depth, dataset.update_init_factor, dataset.update_hierachy_factor,
++                                  dataset.use_feat_bank, dataset.appearance_dim, dataset.ratio,
++                                  dataset.add_opacity_dist, dataset.add_cov_dist, dataset.add_color_dist)
++        scene = Scene(dataset, gaussians, load_iteration=iteration, shuffle=False)
++        gaussians.eval()
++        bg = torch.tensor([1, 1, 1] if dataset.white_background else [0, 0, 0], dtype=torch.float32, device="cuda")
++
++        metric_scale, scene_name = scene_metric_scale(dataset.model_path)
++        if metric_override is not None:
++            metric_scale = metric_override
++        anchors = gaussians.get_anchor.detach().cpu().numpy()
++        amin = torch.tensor(np.percentile(anchors, plo, axis=0), device="cuda", dtype=torch.float32)
++        amax = torch.tensor(np.percentile(anchors, phi, axis=0), device="cuda", dtype=torch.float32)
++        box_c = (amin + amax) / 2
++        box_half = (amax - amin) / 2
++
++        out = os.path.join(dataset.model_path, "test", f"ours_{scene.loaded_iter}", f"depth_{tag}")
++        makedirs(out, exist_ok=True)
++        counter = {"total": 0, "excluded": 0, "outside": 0, "oversized": 0}
++        for view in tqdm(scene.getTestCameras(), desc=f"ScafDepth[{tag}]"):
++            vmask = prefilter_voxel(view, gaussians, pipeline, bg)
++            d = render_depth_qc_view(view, gaussians, pipeline, vmask, box_c, box_half,
++                                     mult, max_scale_m, metric_scale, mode, counter)
++            np.save(os.path.join(out, view.image_name + ".npy"), d.squeeze(0).cpu().numpy())
++        # counters are summed over views (neural gaussians regenerate per view); report per-view average
++        nviews = len(scene.getTestCameras())
++        info = {"qc_mode": mode, "aabb_source": f"anchor_percentile_{plo}_{phi}",
++                "aabb_multiplier": mult, "max_gaussian_scale_m": max_scale_m,
++                "metric_scale_m_per_colmap_unit": metric_scale, "scene": scene_name, "n_views": nviews,
++                "avg_neural_gaussians_per_view": counter["total"] / max(nviews, 1),
++                "avg_excluded_per_view": counter["excluded"] / max(nviews, 1),
++                "avg_excluded_fraction": counter["excluded"] / max(counter["total"], 1),
++                "avg_outside_per_view": counter["outside"] / max(nviews, 1),
++                "avg_oversized_per_view": counter["oversized"] / max(nviews, 1)}
++        json.dump(info, open(os.path.join(out, "qc_meta.json"), "w"), indent=2)
++        print(f"[QC {mode}] {scene_name} metric_scale={metric_scale:.6g} "
++              f"avg excluded {info['avg_excluded_per_view']:.0f}/{info['avg_neural_gaussians_per_view']:.0f} "
++              f"({info['avg_excluded_fraction']*100:.2f}%) -> {out}")
++
++
++if __name__ == "__main__":
++    parser = ArgumentParser(description="QC depth exporter (Scaffold-GS)")
++    model = ModelParams(parser, sentinel=True)
++    pipeline = PipelineParams(parser)
++    parser.add_argument("--iteration", default=-1, type=int)
++    parser.add_argument("--qc_mode", choices=("none", "aabb", "size", "both"), default="none")
++    parser.add_argument("--aabb_multiplier", type=float, default=1.25)
++    parser.add_argument("--max_gaussian_scale_m", type=float, default=2.0)
++    parser.add_argument("--aabb_pct_lo", type=float, default=0.5)
++    parser.add_argument("--aabb_pct_hi", type=float, default=99.5)
++    parser.add_argument("--out_tag", default=None)
++    parser.add_argument("--metric_scale", type=float, default=None)
++    parser.add_argument("--quiet", action="store_true")
++    args = get_combined_args(parser)
++    safe_state(getattr(args, "quiet", False))
++    out_tag = getattr(args, "out_tag", None)
++    metric_override = getattr(args, "metric_scale", None)
++    tag = out_tag or {"none": "S0", "aabb": "S1", "size": "S2", "both": "S3"}[args.qc_mode]
++    run(model.extract(args), args.iteration, pipeline.extract(args), args.qc_mode,
++        args.aabb_multiplier, args.max_gaussian_scale_m, tag, metric_override,
++        args.aabb_pct_lo, args.aabb_pct_hi)
+diff --git a/scene/cameras.py b/scene/cameras.py
+index abf6e52..699e815 100755
+--- a/scene/cameras.py
++++ b/scene/cameras.py
+@@ -17,7 +17,8 @@ from utils.graphics_utils import getWorld2View2, getProjectionMatrix
+ class Camera(nn.Module):
+     def __init__(self, colmap_id, R, T, FoVx, FoVy, image, gt_alpha_mask,
+                  image_name, uid,
+-                 trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda"
++                 trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda",
++                 image_uint8 = False
+                  ):
+         super(Camera, self).__init__()
+ 
+@@ -36,14 +37,20 @@ class Camera(nn.Module):
+             print(f"[Warning] Custom device {data_device} failed, fallback to default cuda device" )
+             self.data_device = torch.device("cuda")
+ 
+-        self.original_image = image.clamp(0.0, 1.0).to(self.data_device)
+-        self.image_width = self.original_image.shape[2]
+-        self.image_height = self.original_image.shape[1]
+-
++        _img = image.clamp(0.0, 1.0)
++        self.image_width = _img.shape[2]
++        self.image_height = _img.shape[1]
+         if gt_alpha_mask is not None:
+-            self.original_image *= gt_alpha_mask.to(self.data_device)
++            _img = _img * gt_alpha_mask
++        else:
++            _img = _img * torch.ones((1, self.image_height, self.image_width))
++
++        self.image_uint8 = bool(image_uint8)
++        if self.image_uint8:
++            # lossless for 8-bit JPG sources; 4x less memory; converted to float on access via original_image
++            self._gt_image = (_img * 255.0).round().clamp(0, 255).to(torch.uint8).to(self.data_device)
+         else:
+-            self.original_image *= torch.ones((1, self.image_height, self.image_width), device=self.data_device)
++            self._gt_image = _img.to(self.data_device)
+ 
+         self.zfar = 100.0
+         self.znear = 0.01
+@@ -56,6 +63,13 @@ class Camera(nn.Module):
+         self.full_proj_transform = (self.world_view_transform.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0))).squeeze(0)
+         self.camera_center = self.world_view_transform.inverse()[3, :3]
+ 
++    @property
++    def original_image(self):
++        # uint8 mode: convert back to float [0,1] on access; otherwise return the stored float
++        if getattr(self, "image_uint8", False):
++            return self._gt_image.float() / 255.0
++        return self._gt_image
++
+ class MiniCam:
+     def __init__(self, width, height, fovy, fovx, znear, zfar, world_view_transform, full_proj_transform):
+         self.image_width = width
+diff --git a/scene/dataset_readers.py b/scene/dataset_readers.py
+index 73e7512..1c30724 100755
+--- a/scene/dataset_readers.py
++++ b/scene/dataset_readers.py
+@@ -162,7 +162,18 @@ def readColmapSceneInfo(path, images, eval, lod, llffhold=8):
+     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir))
+     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
+ 
+-    if eval:
++    split_json = os.path.join(path, "split.json")
++    if eval and lod <= 0 and os.path.exists(split_json):
++        # prefer the scene's split.json ({"train":[...], "val":[...]}), matched by file-name stem
++        with open(split_json, "r") as f:
++            split = json.load(f)
++        train_names = {os.path.splitext(os.path.basename(n))[0] for n in split.get("train", [])}
++        test_names  = {os.path.splitext(os.path.basename(n))[0]
++                       for n in (split.get("val", []) + split.get("test", []))}
++        train_cam_infos = [c for c in cam_infos if c.image_name in train_names]
++        test_cam_infos  = [c for c in cam_infos if c.image_name in test_names]
++        print(f"[split.json] train={len(train_cam_infos)}, test={len(test_cam_infos)} (from {split_json})")
++    elif eval:
+         if lod>0:
+             print(f'using lod, using eval')
+             if lod < 50:
+@@ -176,7 +187,7 @@ def readColmapSceneInfo(path, images, eval, lod, llffhold=8):
+         else:
+             train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold != 0]
+             test_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold == 0]
+-    
++
+     else:
+         train_cam_infos = cam_infos
+         test_cam_infos = []
+diff --git a/train.py b/train.py
+index 166cc4c..198024b 100755
+--- a/train.py
++++ b/train.py
+@@ -304,8 +304,8 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
+ 
+ 
+         # gts
+-        gt = view.original_image[0:3, :, :]
+-        
++        gt = view.original_image[0:3, :, :].to(rendering.device)   # with data_device=cpu the gt is on CPU; move it to the rendering device
++
+         # error maps
+         errormap = (rendering - gt).abs()
+ 
+@@ -359,12 +359,31 @@ def readImages(renders_dir, gt_dir):
+     for fname in os.listdir(renders_dir):
+         render = Image.open(renders_dir / fname)
+         gt = Image.open(gt_dir / fname)
+-        renders.append(tf.to_tensor(render).unsqueeze(0)[:, :3, :, :].cuda())
+-        gts.append(tf.to_tensor(gt).unsqueeze(0)[:, :3, :, :].cuda())
++        renders.append(tf.to_tensor(render).unsqueeze(0)[:, :3, :, :])
++        gts.append(tf.to_tensor(gt).unsqueeze(0)[:, :3, :, :])
+         image_names.append(fname)
+     return renders, gts, image_names
+ 
+ 
++def lpips_tiled(lpips_fn, img0, img1, max_pixels=5000000):
++    # full-res LPIPS via fp32 row-tiles (avoids 40GB OOM + fp16 NaN); area-weighted mean.
++    _, _, H, W = img0.shape
++    n = max(1, (H * W + max_pixels - 1) // max_pixels)
++    bounds = [(i * H) // n for i in range(n + 1)]
++    acc, total = 0.0, 0
++    for i in range(n):
++        h0, h1 = bounds[i], bounds[i + 1]
++        if h1 <= h0:
++            continue
++        with torch.no_grad():
++            d = lpips_fn(img0[:, :, h0:h1, :], img1[:, :, h0:h1, :]).item()
++        area = (h1 - h0) * W
++        acc += d * area
++        total += area
++        torch.cuda.empty_cache()
++    return torch.tensor(acc / total)
++
++
+ def evaluate(model_paths, visible_count=None, wandb=None, tb_writer=None, dataset_name=None, logger=None):
+ 
+     full_dict = {}
+@@ -398,9 +417,14 @@ def evaluate(model_paths, visible_count=None, wandb=None, tb_writer=None, datase
+         lpipss = []
+ 
+         for idx in tqdm(range(len(renders)), desc="Metric evaluation progress"):
+-            ssims.append(ssim(renders[idx], gts[idx]))
+-            psnrs.append(psnr(renders[idx], gts[idx]))
+-            lpipss.append(lpips_fn(renders[idx], gts[idx]).detach())
++            with torch.no_grad():
++                render = renders[idx].cuda()
++                gt = gts[idx].cuda()
++                ssims.append(ssim(render, gt).cpu())
++                psnrs.append(psnr(render, gt).cpu())
++                lpipss.append(lpips_tiled(lpips_fn, render, gt))
++                del render, gt
++            torch.cuda.empty_cache()
+         
+         if wandb is not None:
+             wandb.log({"test_SSIMS":torch.stack(ssims).mean().item(), })
+diff --git a/utils/camera_utils.py b/utils/camera_utils.py
+index 8ce8523..552b402 100755
+--- a/utils/camera_utils.py
++++ b/utils/camera_utils.py
+@@ -50,7 +50,8 @@ def loadCam(args, id, cam_info, resolution_scale):
+     return Camera(colmap_id=cam_info.uid, R=cam_info.R, T=cam_info.T, 
+                   FoVx=cam_info.FovX, FoVy=cam_info.FovY, 
+                   image=gt_image, gt_alpha_mask=loaded_mask,
+-                  image_name=cam_info.image_name, uid=id, data_device=args.data_device)
++                  image_name=cam_info.image_name, uid=id, data_device=args.data_device,
++                  image_uint8=getattr(args, "image_uint8", False))
+ 
+ def cameraList_from_camInfos(cam_infos, resolution_scale, args):
+     camera_list = []

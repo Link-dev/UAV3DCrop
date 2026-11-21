@@ -1,0 +1,79 @@
+{
+ "_comment": "Canopy-height settings of the paper (Sec. 3.4, A.3). 'group' is the plot group in ground_measurements/; ground_z_m is the approximate bare-ground height of the plot in that group's scene frame and only bounds the points kept (ground_z - 2 m to ground_z + 3 m). bare_ground_scene names the plot's bare-ground survey; its released point clouds are ground_measurements/bare_ground_points/<mode>/<method>/<bare_ground_scene>.ply, cropped to within bare_ground_points_crop_m of the plot's sampling points.",
+ "frames_used": 50,
+ "max_depth_m": 40.0,
+ "z_band_m": [
+  -2.0,
+  3.0
+ ],
+ "max_points": 2000000,
+ "radius_m": 0.4,
+ "ground_percentile": 50,
+ "min_points": 20,
+ "bare_ground_points_crop_m": 2.0,
+ "plots": {
+  "wheat": {
+   "group": "2025/Wheat",
+   "bare_ground_scene": "2025/BareGround_Wheat",
+   "canopy_percentile": 85,
+   "ground_z_m": -14.401480527572359,
+   "scenes": [
+    "2025/Day019_Wheat",
+    "2025/Day028_Wheat",
+    "2025/Day033_Wheat",
+    "2025/Day040_Wheat",
+    "2025/Day047_Wheat",
+    "2025/Day052_Wheat"
+   ]
+  },
+  "oat": {
+   "group": "2025/Oat",
+   "bare_ground_scene": "2025/BareGround_Oat",
+   "canopy_percentile": 90,
+   "ground_z_m": -14.973486546541109,
+   "scenes": [
+    "2025/Day019_Oat",
+    "2025/Day028_Oat",
+    "2025/Day033_Oat",
+    "2025/Day040_Oat",
+    "2025/Day047_Oat",
+    "2025/Day052_Oat"
+   ]
+  },
+  "corn": {
+   "group": "2025/Corn",
+   "bare_ground_scene": "2025/Day007_Corn",
+   "canopy_percentile": 85,
+   "ground_z_m": -18.240620490691036,
+   "scenes": [
+    "2025/Day019_Corn",
+    "2025/Day028_Corn",
+    "2025/Day033_Corn",
+    "2025/Day040_Corn",
+    "2025/Day047_Corn",
+    "2025/Day052_Corn",
+    "2025/Day059_Corn",
+    "2025/Day069_Corn",
+    "2025/Day077_Corn",
+    "2025/Day083_Corn",
+    "2025/Day096_Corn"
+   ]
+  },
+  "soybean": {
+   "group": "2025/soybean",
+   "bare_ground_scene": "2025/Day007_soybean",
+   "canopy_percentile": 85,
+   "ground_z_m": -15.064256607322072,
+   "scenes": [
+    "2025/Day019_soybean",
+    "2025/Day028_soybean",
+    "2025/Day033_soybean",
+    "2025/Day040_soybean",
+    "2025/Day047_soybean",
+    "2025/Day052_soybean",
+    "2025/Day059_soybean",
+    "2025/Day069_soybean"
+   ]
+  }
+ }
+}
